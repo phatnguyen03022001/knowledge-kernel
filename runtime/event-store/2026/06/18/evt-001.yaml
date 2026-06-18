@@ -1,6 +1,6 @@
-id: aad47d9b-182c-4cb3-a34e-ffe5127b1266
+id: 8b0d388d-299e-449f-8a7f-4e792ec2c9e6
 type: graph.validated
-timestamp: '2026-06-18T07:48:47.841862Z'
+timestamp: '2026-06-18T07:50:43.799870Z'
 source:
   component: acp_runner
   entity:
@@ -11,6 +11,6 @@ payload:
   ssot_path: runtime/test-ssot.yaml
   correction_id: TEST-CORR-001
 metadata:
-  correlation_id: 92369cbc-8f6c-47fe-866e-9567e186b96b
+  correlation_id: e05b116f-1fb5-45fe-8533-3124ab305812
   causation_id: null
 version: 1
