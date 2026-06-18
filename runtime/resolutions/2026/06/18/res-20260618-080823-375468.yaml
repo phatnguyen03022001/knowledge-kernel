@@ -1,0 +1,10 @@
+resolution_id: res-20260618-080823-375468
+timestamp: '2026-06-18T08:08:23.375468+00:00'
+action: NONE
+reason_codes: []
+target_scope: run
+source_audit_id: audit-20260618-080823-375352
+source_verdict: PASS
+source_risk_score: 0.0
+immutable: true
+content_hash: bfc79aff533df5be938e71fbe43d17bb6c7771c4d8719b5bb09e1089f977fae4

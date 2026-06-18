@@ -1,0 +1,12 @@
+resolution_id: res-20260618-080814-441617
+timestamp: '2026-06-18T08:08:14.441617+00:00'
+action: BLOCK
+reason_codes:
+- CRITICAL_FAILURES
+- CRITICAL_COUNT=2
+target_scope: node
+source_audit_id: demo
+source_verdict: FAIL
+source_risk_score: 0.0
+immutable: true
+content_hash: 1f88f0ef79149c5d6d71ddfa093705a0d3bb8a805b7704c4e93481ea84b89d59

@@ -1,0 +1,11 @@
+resolution_id: res-20260618-080814-486372
+timestamp: '2026-06-18T08:08:14.486372+00:00'
+action: ESCALATE
+reason_codes:
+- FAIL_NO_CRITICAL
+target_scope: run
+source_audit_id: demo
+source_verdict: FAIL
+source_risk_score: 0.6
+immutable: true
+content_hash: 41809befdfd27bd93ecd1bc7def03f5e9288b97de654b8a6cc7c7933b3429af9

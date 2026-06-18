@@ -1,0 +1,12 @@
+resolution_id: res-20260618-080814-528693
+timestamp: '2026-06-18T08:08:14.528693+00:00'
+action: ESCALATE
+reason_codes:
+- WARN_VERDICT
+- HIGH_RISK
+target_scope: run
+source_audit_id: demo
+source_verdict: WARN
+source_risk_score: 0.9
+immutable: true
+content_hash: 4b3c20551bbb925032c4543b4f41c72b0f86d5ba532f5069eeca22d3a453526e

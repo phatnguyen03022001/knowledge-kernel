@@ -1,0 +1,11 @@
+resolution_id: res-20260618-080814-394954
+timestamp: '2026-06-18T08:08:14.394954+00:00'
+action: MONITOR
+reason_codes:
+- WARN_VERDICT
+target_scope: run
+source_audit_id: demo
+source_verdict: WARN
+source_risk_score: 0.5
+immutable: true
+content_hash: 921589c3fcad226627955114092debb310881a3fc28df9d40efbf0cd21665f6a
