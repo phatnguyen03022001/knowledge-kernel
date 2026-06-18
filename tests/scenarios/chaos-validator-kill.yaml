@@ -1,0 +1,55 @@
+# ============================================================================
+# Chaos Test: Kill Validator Mid-Run
+# ============================================================================
+# Contract: CHAOS-001 from validator-invariants.yaml
+# ============================================================================
+
+scenario: chaos-validator-kill
+description: >
+  Terminate validator mid-run on a 50-node graph.
+  Restart. Verify: no partial state corruption, no orphaned output.
+
+steps:
+  - name: "setup-50-node-graph"
+    type: generate
+    config:
+      node_count: 50
+      link_density: 0.3
+      include_orphans: false
+      include_broken_links: false
+    output: "tmp/chaos-graph/"
+
+  - name: "start-validator-async"
+    type: run_async
+    command: "python3 kernel/runtime/validator.py --target tmp/chaos-graph/ --full"
+    pid_var: VALIDATOR_PID
+
+  - name: "kill-after-200ms"
+    type: sleep_then_kill
+    delay_ms: 200
+    signal: SIGKILL
+    pid_var: VALIDATOR_PID
+
+  - name: "verify-no-partial-output"
+    type: check
+    assertions:
+      - "no .tmp or .partial files exist in runtime/"
+      - "no orphaned lock files in runtime/"
+      - "event-store unchanged (no partial events written)"
+
+  - name: "restart-validator"
+    type: run_pack
+    pack: validate-graph
+    target: "tmp/chaos-graph/"
+
+  - name: "verify-clean-restart"
+    type: check
+    assertions:
+      - "validator exits 0"
+      - "output.valid == true"
+      - "output.summary.failed_critical == 0"
+      - "no ERR-VAL-004 (partial_result) returned"
+
+  - name: "cleanup"
+    type: command
+    command: "rm -rf tmp/chaos-graph/"

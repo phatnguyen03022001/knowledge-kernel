@@ -1,0 +1,41 @@
+# ============================================================================
+# Chaos Test: Cold Start Empty System
+# ============================================================================
+# Contract: CHAOS-005 from validator-invariants.yaml
+# ============================================================================
+
+scenario: chaos-cold-start
+description: >
+  Run validator on a completely empty system.
+  All invariants MUST pass vacuously.
+  Zero false positives. Exit code 0.
+
+steps:
+  - name: "ensure-empty-state"
+    type: check
+    assertions:
+      - "knowledge/ssot/ contains only .gitkeep"
+      - "runtime/event-store/ contains no events"
+      - "kernel/foundation/concept-registry.yaml has empty concepts list"
+
+  - name: "run-validator-full-system"
+    type: run_pack
+    pack: validate-graph
+
+  - name: "verify-vacuous-pass"
+    type: check
+    assertions:
+      - "output.valid == true"
+      - "output.summary.failed_critical == 0"
+      - "output.summary.failed_warning == 0"
+      - "output.summary.total_checks >= 0"
+      - "output.violations is empty or null"
+      - "output.health_snapshot.total_nodes == 0"
+      - "output.health_snapshot.orphan_count == 0"
+      - "output.health_snapshot.orphan_rate == 0.0"
+
+  - name: "verify-no-errors"
+    type: check
+    assertions:
+      - "exit_code == 0"
+      - "no ERR-VAL-* error returned"

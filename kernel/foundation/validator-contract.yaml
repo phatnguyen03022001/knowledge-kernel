@@ -1,0 +1,274 @@
+# ============================================================================
+# Validator Interface Contract — Phase 2.0 Hardening
+# ============================================================================
+# Derived from validator-invariants.yaml.
+# This file defines the INPUT/OUTPUT boundary of the Validator module.
+# No implementation may violate this contract.
+# ============================================================================
+
+managed-by: knowledge-kernel
+managed-version: 2.0
+derived-from: kernel/foundation/validator-invariants.yaml
+
+# ============================================================================
+# INPUT CONTRACT
+# ============================================================================
+
+input:
+  # ── Required inputs (at least one must be provided) ────────────────
+
+  target:
+    description: "What to validate"
+    one_of:
+      - type: file
+        path: "relative path to a single file (SSOT, YAML, event)"
+        example: "knowledge/ssot/03-knowledge-model.md"
+
+      - type: directory
+        path: "relative path to a directory"
+        example: "knowledge/ssot/"
+
+      - type: full-system
+        description: "Validate entire knowledge tree + event store"
+
+  rules:
+    description: "Which invariants to enforce. If omitted, enforce all."
+    type: array
+    default: all
+    items:
+      enum: [S-INV-001, S-INV-002, S-INV-003, S-INV-004,
+             G-INV-001, G-INV-002, G-INV-003, G-INV-004,
+             E-INV-001, E-INV-002, E-INV-003,
+             GH-INV-001, GH-INV-002]
+
+  phase:
+    description: "Current bootstrap phase (affects which invariants are waived)"
+    type: enum
+    enum: [phase_0, phase_1, phase_2]
+    default: phase_1
+    note: >
+      phase_0: G-INV-001 waived (seed owner is implicit domain owner)
+      phase_1+: all invariants enforced
+
+  context:
+    description: "Optional execution context for path resolution"
+    type: object
+    properties:
+      root_dir:
+        type: string
+        default: "." (project root)
+      event_store_dir:
+        type: string
+        default: "runtime/event-store/"
+      registry_path:
+        type: string
+        default: "kernel/foundation/concept-registry.yaml"
+
+# ============================================================================
+# OUTPUT CONTRACT
+# ============================================================================
+
+output:
+  # ── Always returned ────────────────────────────────────────────────
+
+  valid:
+    type: boolean
+    description: >
+      true if zero critical violations.
+      false if ANY critical invariant fails.
+      Warning-only violations do NOT flip valid to false.
+
+  summary:
+    type: object
+    properties:
+      total_checks:
+        type: integer
+        description: "Number of invariant checks executed"
+      passed:
+        type: integer
+      failed_critical:
+        type: integer
+      failed_warning:
+        type: integer
+      skipped:
+        type: integer
+        description: "Checks skipped due to phase waiver or cold-start"
+      duration_ms:
+        type: integer
+
+  # ── Returned when violations exist ─────────────────────────────────
+
+  violations:
+    type: array
+    items:
+      type: object
+      properties:
+        invariant_id:
+          type: string
+          example: "S-INV-002"
+        invariant_name:
+          type: string
+          example: "every-link-resolves"
+        severity:
+          type: enum
+          enum: [critical, warning]
+        location:
+          type: object
+          properties:
+            file:
+              type: string
+              example: "knowledge/ssot/07-dependency-map.md"
+            field:
+              type: string
+              example: "links[2]"
+            expected:
+              type: string
+              example: "knowledge/ssot/03-knowledge-model.md (exists)"
+            actual:
+              type: string
+              example: "knowledge/ssot/99-nonexistent.md (missing)"
+        recovery:
+          type: object
+          properties:
+            auto_recoverable:
+              type: boolean
+            suggested_action:
+              type: string
+              example: "Update link target to an existing SSOT, or create the missing file"
+            failure_mode_ref:
+              type: string
+              example: "FM-validator-002"
+        timestamp:
+          type: string
+          format: iso8601
+
+  # ── Returned on full-system validation ────────────────────────────
+
+  health_snapshot:
+    type: object
+    description: "Graph health metrics (only on full-system or directory target)"
+    properties:
+      total_nodes:
+        type: integer
+      orphan_count:
+        type: integer
+      orphan_rate:
+        type: number
+        format: "0.00"
+      broken_link_count:
+        type: integer
+      circular_dependency_count:
+        type: integer
+      domains_without_owner:
+        type: integer
+      stale_corrections:
+        type: integer
+
+# ============================================================================
+# ERROR MODEL
+# ============================================================================
+
+errors:
+  # Validator errors are NOT the same as invariant violations.
+  # Errors = validator could not complete. Violations = system is invalid.
+
+  - code: ERR-VAL-001
+    type: "INPUT_MALFORMED"
+    description: "Input target file does not exist or is unreadable"
+    http_analog: 400
+    response: "Return error, do not attempt validation"
+
+  - code: ERR-VAL-002
+    type: "INPUT_SCHEMA_INVALID"
+    description: "Input does not match this contract (missing required fields)"
+    http_analog: 400
+    response: "Return error with field-level details"
+
+  - code: ERR-VAL-003
+    type: "DEPENDENCY_MISSING"
+    description: "concept-registry.yaml or validator-invariants.yaml not found"
+    http_analog: 500
+    response: "Return error — validator cannot operate without its spec"
+
+  - code: ERR-VAL-004
+    type: "PARTIAL_RESULT"
+    description: >
+      Validator was interrupted mid-run (SIGKILL, power loss).
+      On restart, validator detects incomplete previous run.
+    http_analog: 500
+    response: >
+      Return error with `partial_result: true`.
+      State is NOT corrupted — validator uses atomic writes.
+      Caller should re-run validation.
+
+  - code: ERR-VAL-005
+    type: "CIRCULAR_REFERENCE"
+    description: "Validator detected a cycle too deep to resolve (>100 nodes)"
+    http_analog: 500
+    response: "Return error with the partial cycle path detected so far"
+
+# ============================================================================
+# RETRY & IDEMPOTENCY SEMANTICS
+# ============================================================================
+
+retry:
+  # Validator is idempotent: running it twice on the same state
+  # produces the same output. No side effects during validation.
+  idempotent: true
+
+  # Validation is read-only — no state mutation.
+  side_effects: none
+
+  # Retry strategy for callers:
+  strategy:
+    on_error: "retry up to 3 times with exponential backoff (1s, 3s, 9s)"
+    on_violation: "do NOT retry — violations require state change, not re-validation"
+
+# ============================================================================
+# PERFORMANCE BOUNDS
+# ============================================================================
+
+performance:
+  # These are targets, not invariants. Exceeding them = optimization needed,
+  # not system failure.
+
+  targets:
+    single_file_validation: "< 100ms"
+    full_system_validation_50_nodes: "< 2s"
+    full_system_validation_500_nodes: "< 15s"
+    cold_start_validation: "< 50ms"
+
+  memory:
+    max_resident_memory: "< 256MB for 500-node graph"
+
+# ============================================================================
+# INTEGRATION POINTS
+# ============================================================================
+
+integration:
+  # Systems that call Validator:
+
+  acp_runner:
+    when: "Before executing any ACP pack that modifies SSOT"
+    required_output: "valid: true"
+    on_failure: "block pack execution"
+
+  projection_builder:
+    when: "Before committing a new projection"
+    required_output: "valid: true + health_snapshot"
+    on_failure: "reject projection, rebuild from event store"
+
+  correction_loop:
+    when: "After correction proposed, before domain owner review"
+    required_output: "valid: true"
+    on_failure: "return violations to proposer for fix"
+
+  health_dashboard:
+    when: "Every health refresh cycle (hourly or event-driven)"
+    required_output: "health_snapshot"
+    on_failure: "use last known good snapshot, flag validator as DEGRADED"
+
+  ci_pipeline:
+    when: "On every commit to main"
+    required_output: "valid: true OR violations list"
+    on_failure: "block merge if critical violation"

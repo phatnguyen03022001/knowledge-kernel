@@ -1,0 +1,346 @@
+# ============================================================================
+# Validator Invariants — Phase 2.0 Hardening
+# ============================================================================
+# "Physics of the system." These are NOT configurable rules.
+# They are hard constraints that must hold for the system to be considered valid.
+#
+# Meta-rule: No implementation may introduce a new invariant
+#            that is not declared in this file.
+# ============================================================================
+
+managed-by: knowledge-kernel
+managed-version: 2.0
+phase: hardening
+status: committed
+
+# ============================================================================
+# TIER 1 — Structural Invariants (always enforced)
+# ============================================================================
+# Violating any Tier 1 invariant = system is in INVALID state.
+# Validator MUST reject. No override possible.
+
+structural:
+  - id: S-INV-001
+    name: "no-orphan-nodes"
+    description: >
+      Every SSOT referenced in any `links:` field MUST exist as a file.
+      A node with zero incoming links is NOT an orphan — it may be a
+      root node or a newly created SSOT.
+      An orphan is defined strictly as: incoming_links > 0 AND file_missing.
+    severity: critical
+    expression: >
+      for each SSOT.links:
+        linked_file MUST exist in ssot/ OR learning-model/ OR schemas/
+    cold_start: empty system passes vacuously
+    violation_response: reject — system state is invalid
+
+  - id: S-INV-002
+    name: "every-link-resolves"
+    description: >
+      Every value in `links:` and `sources:` MUST reference a file
+      that exists. Dead links are structural corruption.
+    severity: critical
+    expression: >
+      for each SSOT.sources:
+        source_file MUST exist in research/ OR ssot/
+      for each SSOT.links:
+        target_file MUST exist in the knowledge tree
+    cold_start: passes vacuously (no links to resolve)
+    violation_response: reject — broken link detected
+
+  - id: S-INV-003
+    name: "frontmatter-completeness"
+    description: >
+      Every SSOT file MUST have all required frontmatter fields:
+      status, last-reviewed, review-by, sources, links, owner,
+      primary-domain, version.
+      Missing fields = unverifiable provenance.
+    severity: critical
+    expression: >
+      for each SSOT:
+        [status, last-reviewed, review-by, sources, links, owner,
+         primary-domain, version] MUST all be present and non-null
+    cold_start: applies to every SSOT from creation
+    violation_response: reject — provenance incomplete
+
+  - id: S-INV-004
+    name: "schema-compliance"
+    description: >
+      Every YAML file in kernel/ and governance/ MUST validate against
+      its declared schema. Runtime YAML files (event-store, projections)
+      MUST validate against event-schema.yaml.
+    severity: critical
+    expression: >
+      for each YAML file in [kernel/, governance/, runtime/event-store/]:
+        file MUST match its declared schema
+    cold_start: applies to all structured files
+    violation_response: reject — schema violation
+
+# ============================================================================
+# TIER 2 — Governance Invariants (enforced when governance is active)
+# ============================================================================
+# These apply after Phase 0 bootstrap. During Phase 0, seed owner
+# may temporarily bypass via explicit waiver recorded in decision log.
+
+governance:
+  - id: G-INV-001
+    name: "every-domain-has-owner"
+    description: >
+      Every domain declared in concept-registry.yaml MUST have
+      a non-null owner. Unowned domain = BLOCKED STATE.
+    severity: critical
+    expression: >
+      for each domain in concept-registry:
+        domain.owner MUST be non-null AND non-empty
+    phase_0_waiver: allowed — seed owner acts as implicit owner
+    phase_1_onward: enforced — unowned domain triggers assignment workflow
+    violation_response: reject + trigger domain-assignment workflow
+
+  - id: G-INV-002
+    name: "one-concept-one-owner"
+    description: >
+      Each concept in concept-registry.yaml MUST have exactly one
+      canonical owner. Duplicate ownership = REJECT.
+      Deprecated concepts retain their entry (status = deprecated),
+      so the owner field remains valid even after deprecation.
+    severity: critical
+    expression: >
+      for each concept in concept-registry:
+        count(concept.owner) == 1
+      for each concept pair (A, B):
+        A.path == B.path => A is B (no duplicate path entries)
+    violation_response: reject — ownership conflict
+
+  - id: G-INV-003
+    name: "correction-must-link-to-ssot"
+    description: >
+      Every correction event MUST reference at least one SSOT in its
+      `affects` field. Orphan corrections are not valid.
+    severity: critical
+    expression: >
+      for each correction in governance/corrections/:
+        correction.affects MUST be non-empty array
+        each entry in correction.affects MUST map to an existing SSOT
+    violation_response: reject — unlinked correction
+
+  - id: G-INV-004
+    name: "correction-convergence"
+    description: >
+      Every correction MUST eventually reach a terminal state:
+      applied, rejected, or superseded. A correction that stays
+      in 'open' state beyond the cycle window (48h) triggers
+      escalation, but is NOT structurally invalid — it's stalled,
+      not broken. The invariant only requires: no infinite loop.
+    severity: warning
+    expression: >
+      correction.status in [open, applied, rejected, superseded]
+      AND correction.attempts < max_retries (= 3)
+    violation_response: warn + auto-escalate on 3rd consecutive failure
+
+# ============================================================================
+# TIER 3 — Event Integrity Invariants
+# ============================================================================
+
+events:
+  - id: E-INV-001
+    name: "event-immutability"
+    description: >
+      Events in runtime/event-store/ are append-only. Once written,
+      an event's content MUST NOT be modified. Correction events
+      may be superseded by a newer event, but the original is
+      never edited or deleted.
+    severity: critical
+    expression: >
+      for each event in event-store:
+        event.content_hash == sha256(event.content_at_write_time)
+      (enforced by content hash comparison on read)
+    violation_response: reject — tampered event detected
+
+  - id: E-INV-002
+    name: "event-causality-chain"
+    description: >
+      Every event MUST have a valid causation_id: either null
+      (root event) or referencing an existing event ID.
+      Broken causation chains = non-replayable history.
+    severity: critical
+    expression: >
+      for each event:
+        event.metadata.causation_id is null
+        OR event.metadata.causation_id exists in event-store
+    violation_response: reject — broken causality
+
+  - id: E-INV-003
+    name: "event-ordering-monotonic"
+    description: >
+      Event timestamps MUST be monotonically non-decreasing within
+      a correlation chain. Clock skew across machines is tolerated
+      (up to 5s), but reverse causality is rejected.
+    severity: warning
+    expression: >
+      for each pair (A, B) in same correlation_id chain:
+        B.timestamp >= A.timestamp - 5s (clock skew tolerance)
+    violation_response: warn — potential clock skew
+
+# ============================================================================
+# TIER 4 — Graph Health Invariants
+# ============================================================================
+
+graph:
+  - id: GH-INV-001
+    name: "no-circular-dependency"
+    description: >
+      The SSOT dependency graph MUST be a DAG. Circular `links:`
+      references create unresolvable dependency chains.
+    severity: critical
+    expression: >
+      for each cycle in graph(SSOT.links):
+        cycle.length == 0 (no cycles)
+    cold_start: passes vacuously
+    violation_response: reject — circular dependency
+
+  - id: GH-INV-002
+    name: "orphan-rate-threshold"
+    description: >
+      Orphan rate = (nodes with zero incoming links AND not in root index)
+      / total nodes. Must stay below 10%. Above threshold = DEGRADED.
+      Note: this is a health metric, not a structural invariant.
+      It triggers a warning, not a reject.
+    severity: warning
+    expression: orphan_count / total_nodes <= 0.10
+    violation_response: warn + flag system as DEGRADED
+
+# ============================================================================
+# INVARIANT ENFORCEMENT RULES
+# ============================================================================
+
+enforcement:
+  # When invariants conflict, resolution order:
+  priority:
+    - structural    # S-INV-* always win
+    - governance    # G-INV-* override events
+    - events        # E-INV-* override graph
+    - graph         # GH-INV-* are advisory (health)
+
+  # What happens on violation:
+  responses:
+    critical: "REJECT — system state is invalid. Block the operation."
+    warning:  "WARN — log the violation. Allow operation to proceed with flag."
+
+  # Cold-start semantics:
+  cold_start:
+    rule: >
+      When the system is empty (no SSOT files exist, no events in store),
+      all invariants pass vacuously. The first SSOT creation is not
+      constrained by orphan or link invariants — there are no other
+      nodes to link to yet.
+
+  # Phase gating:
+  phase_gating:
+    phase_0:
+      enforced: [S-INV-001, S-INV-002, S-INV-003, S-INV-004]
+      waived:   [G-INV-001]  # seed owner is implicit domain owner
+    phase_1_onward:
+      enforced: all invariants
+      waived:   none
+
+# ============================================================================
+# FAILURE MODES (what breaks each invariant)
+# ============================================================================
+
+failure_modes:
+  FM-validator-001:
+    invariant: S-INV-001 (no-orphan-nodes)
+    trigger: SSOT deleted without updating links
+    recovery: restore SSOT or update all incoming links
+    auto_recoverable: false
+
+  FM-validator-002:
+    invariant: S-INV-002 (every-link-resolves)
+    trigger: file renamed without updating references
+    recovery: update link target or restore original filename
+    auto_recoverable: false
+
+  FM-validator-003:
+    invariant: S-INV-003 (frontmatter-completeness)
+    trigger: SSOT created without frontmatter template
+    recovery: add missing frontmatter fields
+    auto_recoverable: true — prompt author with template
+
+  FM-validator-004:
+    invariant: G-INV-001 (every-domain-has-owner)
+    trigger: domain owner removed without reassignment
+    recovery: trigger domain-assignment workflow
+    auto_recoverable: true — auto-assign to System Guardian as interim
+
+  FM-validator-005:
+    invariant: G-INV-002 (one-concept-one-owner)
+    trigger: two SSOT files claim same concept
+    recovery: domain owner resolves conflict (L2 or L3 correction)
+    auto_recoverable: false
+
+  FM-validator-006:
+    invariant: E-INV-001 (event-immutability)
+    trigger: manual edit of event-store file outside ACP
+    recovery: restore from git or snapshot
+    auto_recoverable: false — requires human investigation
+
+  FM-validator-007:
+    invariant: GH-INV-001 (no-circular-dependency)
+    trigger: A depends on B, B depends on C, C depends on A
+    recovery: break cycle by removing one link
+    auto_recoverable: false
+
+# ============================================================================
+# CHAOS TEST CONTRACTS
+# ============================================================================
+# These are tests that MUST pass before Validator is considered complete.
+
+chaos_contracts:
+  - id: CHAOS-001
+    name: "kill-validator-mid-run"
+    description: >
+      Terminate validator.py with SIGKILL during a validation run
+      on a 50-node graph. Restart validator. It MUST either:
+      (a) resume from last checkpoint and complete, or
+      (b) restart cleanly with no partial state corruption.
+      It MUST NOT leave the system in an inconsistent state.
+    invariant_tested: S-INV-001, S-INV-002
+    pass_condition: no partial validation output, no corrupted projection
+
+  - id: CHAOS-002
+    name: "inject-invalid-graph-state"
+    description: >
+      Inject a broken links.yaml where SSOT-A links to non-existent SSOT-X.
+      Run validator. It MUST detect the violation (S-INV-002) and reject.
+      It MUST NOT crash or produce a false-positive on unrelated invariants.
+    invariant_tested: S-INV-002
+    pass_condition: violation detected, system rejects, no false positives
+
+  - id: CHAOS-003
+    name: "concurrent-correction-request"
+    description: >
+      Submit two corrections that modify the same SSOT field
+      simultaneously. The system MUST serialize them (one wins,
+      one is superseded) and MUST NOT produce a merge conflict
+      that requires manual resolution outside the governance model.
+    invariant_tested: G-INV-003, G-INV-004
+    pass_condition: exactly one correction applied, other superseded
+
+  - id: CHAOS-004
+    name: "duplicate-concept-claim"
+    description: >
+      Create two SSOT files that both claim ownership of the same
+      concept in concept-registry. Validator MUST reject the second
+      claim (G-INV-002) and preserve the first.
+    invariant_tested: G-INV-002
+    pass_condition: second claim rejected, first owner preserved
+
+  - id: CHAOS-005
+    name: "cold-start-empty-system"
+    description: >
+      Run validator on a completely empty system (no SSOT, no events,
+      no registry entries). Validator MUST pass all invariants
+      vacuously. It MUST NOT produce false positives or require
+      manual configuration to start.
+    invariant_tested: all (cold-start semantics)
+    pass_condition: all checks pass, zero violations, exit code 0

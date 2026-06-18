@@ -1,0 +1,59 @@
+# ============================================================================
+# Chaos Test: Inject Invalid Graph State
+# ============================================================================
+# Contract: CHAOS-002 from validator-invariants.yaml
+# ============================================================================
+
+scenario: chaos-invalid-graph
+description: >
+  Create a graph where SSOT-A links to non-existent SSOT-X.
+  Validator MUST detect S-INV-002 violation and reject.
+  MUST NOT crash or produce false positives.
+
+steps:
+  - name: "create-valid-ssot-a"
+    type: write_file
+    path: "tmp/chaos-graph/ssot-a.md"
+    content: |
+      ---
+      title: SSOT A
+      status: active
+      last-reviewed: 2026-06-18
+      review-by: 2026-09-18
+      sources: []
+      links:
+        - knowledge/ssot/ssot-x.md
+      owner: test
+      primary-domain: structural
+      version: 1.0
+      ---
+
+  - name: "deliberately-omit-ssot-x"
+    type: check
+    assertions:
+      - "knowledge/ssot/ssot-x.md does NOT exist"
+
+  - name: "run-validator"
+    type: run_pack
+    pack: validate-graph
+    target: "tmp/chaos-graph/ssot-a.md"
+
+  - name: "verify-violation-detected"
+    type: check
+    assertions:
+      - "output.valid == false"
+      - "output.violations[0].invariant_id == 'S-INV-002'"
+      - "output.violations[0].severity == 'critical'"
+      - "output.violations[0].location.file == 'tmp/chaos-graph/ssot-a.md'"
+      - "output.violations[0].recovery.auto_recoverable == false"
+
+  - name: "verify-no-false-positives"
+    type: check
+    assertions:
+      - "output.summary.failed_critical == 1"
+      - "output.summary.passed >= 0"
+      - "no violation other than S-INV-002"
+
+  - name: "cleanup"
+    type: command
+    command: "rm -rf tmp/chaos-graph/"

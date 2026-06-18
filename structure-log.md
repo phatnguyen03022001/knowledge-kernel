@@ -361,6 +361,7 @@
 | **Test harness** | **~100%** | 3/3 PASS, YAML scenario format |
 | **Infrastructure deferral** | **~95%** | Adapter-layer invariant confirmed — no premature scaling |
 | **Phase 2 build plan** | **~90%** | Dependency-driven order, no GPT needed — Phase 1 spec is complete |
+| **Phase 2.0 hardening** | **~92%** | Invariants → contracts → chaos tests before implementation |
 
 ---
 
@@ -713,3 +714,19 @@ Validator ──→ Projection ──→ Health Dashboard
 | **Estimated effort** | ~1450 lines Python + ~17 test scenarios |
 
 **Source:** Claude (Phase 1 retrospective + Phase 2 planning).
+
+---
+
+### Decision 35: Phase 2.0 Hardening — invariants before implementation
+
+| Field | Value |
+|--------|---------|
+| **Selected** | Insert Phase 2.0 hardening step before M1 Validator. Write invariants → contracts → chaos tests → then document. No implementation may introduce a new invariant not declared in Phase 2.0 |
+| **Rejected** | Starting M1 Validator code immediately without hardened constraints |
+| **Rationale** | External architecture review identified 3 risks: (1) Correction Loop is a "mini-OS" — 350 LOC optimistic without formal constraints, (2) Projection consistency model undefined, (3) Arbiter lacks formal tie-break strategy. The hardening step addresses all three by committing invariants first, then deriving contracts, then validating with chaos tests — before any implementation code |
+| **Artifacts committed** | `kernel/foundation/validator-invariants.yaml` (13 invariants across 4 tiers + 7 failure modes + 5 chaos contracts), `kernel/foundation/validator-contract.yaml` (input/output boundary + error model + retry semantics + integration points), `tests/scenarios/chaos-validator-kill.yaml`, `tests/scenarios/chaos-invalid-graph.yaml`, `tests/scenarios/chaos-cold-start.yaml` |
+| **Meta-rule** | No implementation may introduce a new invariant not declared in validator-invariants.yaml. This prevents implicit behavior creep, hidden logic, and future god-object drift |
+| **Ordering principle** | Invariants are "physics of the system" — they come before contracts, code, and documentation. Decision log records what was constrained, not what was planned |
+| **Confidence** | ~92%. The constraint-first approach is standard in systems like etcd (Raft invariants before implementation) and Kafka (log consistency model before broker code) |
+
+**Source:** Claude + external architecture review (2026-06-18).
