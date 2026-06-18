@@ -4,11 +4,18 @@
 # Derived from validator-invariants.yaml.
 # This file defines the INPUT/OUTPUT boundary of the Validator module.
 # No implementation may violate this contract.
+#
+# HARD CONSTRAINT: Validator MUST NEVER:
+#   - Call Arbiter or simulate Arbiter logic
+#   - Resolve ownership disputes
+#   - Decide semantic correctness
+#   - Modify system state (read-only)
+#   Validator is a physics engine — it checks invariants, nothing more.
 # ============================================================================
 
 managed-by: knowledge-kernel
-managed-version: 2.0.1
-derived-from: kernel/foundation/validator-invariants.yaml (v1.1)
+managed-version: 2.0.2
+derived-from: kernel/foundation/validator-invariants.yaml (v1.2)
 
 # ============================================================================
 # SEMANTIC BOUNDARY

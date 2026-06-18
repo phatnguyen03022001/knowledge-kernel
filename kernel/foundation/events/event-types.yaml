@@ -62,6 +62,17 @@ event-types:
     description: Domain owner conflict → escalated to Arbiter
     source: validator
 
+  - id: escalation.resolved
+    description: Arbiter resolved a domain conflict with binding decision
+    source: arbiter
+    note: >
+      Resolution events are first-class immutable events. They are the
+      Arbiter's ONLY output. Arbiter does not modify SSOT, registry,
+      or domain assignments directly — it emits a resolution event,
+      which then triggers ACP packs (like any other event).
+      This keeps Arbiter outside the Validator's scope while ensuring
+      E-INV-002 (event causality) is satisfied.
+
   # --- Health lifecycle ---
   - id: health.degraded
     description: System health below threshold
