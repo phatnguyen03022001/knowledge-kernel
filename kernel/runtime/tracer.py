@@ -11,6 +11,23 @@ Architecture:
   trace store = append-only log of traces (runtime/traces/)
   trace CLI = read-only viewer (like `git log` for the knowledge graph)
 
+TRACE GRANULARITY CONTRACT (M2 Projection depends on this):
+  Unit:      1 trace = 1 complete validator pipeline run (all layers, all files).
+             Not per-file, not per-invariant. This is the atomic unit of
+             system observation. Rationale: per-file traces would fragment
+             the causal chain; per-invariant would lose cross-check context.
+  Ordering:  Total order within a single-machine session.
+             Each trace has exactly one parent_trace_id (the immediately
+             preceding trace). This forms a linear chain, not a DAG.
+             Multi-machine traces (Phase 3) will require vector clocks.
+  Schema:    Stable. Fields added only by appending new keys, never by
+             removing or renaming existing keys. M2 Projection reads
+             trace.summary, trace.violations, trace.health_snapshot.
+             These field names are part of the contract.
+  Immutable: Each trace has a content_hash (SHA256). Once written to
+             the trace store, a trace MUST NOT be modified. The trace
+             store is append-only, same as the event store.
+
 HARD CONSTRAINT:
   Tracer MUST NEVER interpret validation results.
   It records that a violation occurred; it does NOT judge severity,
