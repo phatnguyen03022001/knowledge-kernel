@@ -14,7 +14,7 @@
 meta:
   name: Agent Contract Protocol
   version: 1.0
-  codename: "giao-thuc"
+  codename: "protocol"
   date: 2026-06-17
   status: draft
   description: >

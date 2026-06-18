@@ -66,13 +66,13 @@ Custom Poll Interval:
 import os
 import time
 import yaml
+import copy
 import argparse
 
 from pathlib import Path
 from datetime import datetime
 
 from acp_runner import run_pack
-
 
 # ============================================================================
 # Constants
@@ -91,8 +91,17 @@ EVENT_BUS_DIR = Path(
 )
 
 PROCESSED_DIR = EVENT_BUS_DIR / "processed"
+DLQ_DIR = EVENT_BUS_DIR / "dlq"
 
 DEFAULT_INTERVAL = 3
+
+DEV_MODE = (
+    os.environ.get(
+        "KNOWLEDGE_OS_DEV",
+        "0"
+    )
+    == "1"
+)
 
 
 # ============================================================================
@@ -108,6 +117,11 @@ def ensure_dirs() -> None:
     )
 
     PROCESSED_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    DLQ_DIR.mkdir(
         parents=True,
         exist_ok=True
     )
@@ -325,6 +339,32 @@ def mark_processed(
     )
 
 
+def write_dlq(
+    event_id: str,
+    event_type: str,
+    event_doc
+):
+    """
+    Write failed event to
+    Dead Letter Queue.
+    """
+
+    dlq_path = (
+        DLQ_DIR
+        / f"{event_id}.yaml"
+    )
+
+    save_yaml(
+        dlq_path,
+        {
+            "event_id": event_id,
+            "event_type": event_type,
+            "original_event": event_doc,
+            "failed_at": utc_now()
+        }
+    )
+
+
 # ============================================================================
 # Context Builder
 # ============================================================================
@@ -343,6 +383,14 @@ def build_context_from_event(
             {}
         )
     )
+
+    if not isinstance(payload, dict):
+        print(
+            "[WARN] Event payload "
+            "is not a dict — "
+            "using empty context"
+        )
+        payload = {}
 
     metadata = (
         event_doc.get(
@@ -372,49 +420,56 @@ def build_context_from_event(
     )
 
     #
-    # Demo governance tokens
+    # Dev-mode governance tokens
+    # Only injected when
+    # KNOWLEDGE_OS_DEV=1.
+    # Production must supply
+    # real tokens via event
+    # payload.
     #
-    context.setdefault(
-        "domain_owner_token",
-        {
-            "role":
-                "domain_owner",
-            "domain":
-                "default",
-            "approved":
-                True,
-            "signed_at":
-                utc_now()
-        }
-    )
+    if DEV_MODE:
+        context.setdefault(
+            "domain_owner_token",
+            {
+                "role":
+                    "domain_owner",
+                "domain":
+                    "default",
+                "approved":
+                    True,
+                "signed_at":
+                    utc_now()
+            }
+        )
 
-    context.setdefault(
-        "system_guardian_token",
-        {
-            "role":
-                "system_guardian",
-            "approved":
-                True,
-            "signed_at":
-                utc_now()
-        }
-    )
+        context.setdefault(
+            "system_guardian_token",
+            {
+                "role":
+                    "system_guardian",
+                "approved":
+                    True,
+                "signed_at":
+                    utc_now()
+            }
+        )
 
     #
-    # Demo validator context
+    # Dev-mode validator context
     #
-    context.setdefault(
-        "graph",
-        {
-            "nodes": [
-                {
-                    "id": "root",
-                    "root": True,
-                    "incoming_links": 0
-                }
-            ]
-        }
-    )
+    if DEV_MODE:
+        context.setdefault(
+            "graph",
+            {
+                "nodes": [
+                    {
+                        "id": "root",
+                        "root": True,
+                        "incoming_links": 0
+                    }
+                ]
+            }
+        )
 
     context.setdefault(
         "ownership",
@@ -460,6 +515,9 @@ class EventScheduler:
     ):
         """
         Execute ACP pack.
+
+        Returns True on success,
+        False on failure.
         """
 
         pack_name = handler.get(
@@ -467,7 +525,7 @@ class EventScheduler:
         )
 
         if not pack_name:
-            return
+            return True
 
         pack_path = (
             Path("starter-packs")
@@ -485,7 +543,7 @@ class EventScheduler:
                     "[WARN] Pack not found:",
                     pack_name
                 )
-                return
+                return False
 
         print(
             f"[PACK] "
@@ -496,13 +554,15 @@ class EventScheduler:
 
             _, status = run_pack(
                 str(pack_path),
-                context.copy()
+                copy.deepcopy(context)
             )
 
             print(
                 "[RESULT]",
                 status
             )
+
+            return True
 
         except Exception as e:
 
@@ -512,12 +572,18 @@ class EventScheduler:
                 e
             )
 
+            return False
+
     def process_event(
         self,
         event_doc
     ):
         """
         Execute handlers.
+
+        Only marks event processed
+        when ALL handlers succeed.
+        Failed events go to DLQ.
         """
 
         event_type = (
@@ -563,16 +629,34 @@ class EventScheduler:
             )
         )
 
+        all_succeeded = True
+
         for handler in handlers:
-            self.execute_handler(
+            ok = self.execute_handler(
                 handler,
                 context
             )
+            if not ok:
+                all_succeeded = False
 
-        mark_processed(
-            event_id,
-            event_type
-        )
+        if all_succeeded:
+            mark_processed(
+                event_id,
+                event_type
+            )
+        else:
+            print(
+                f"[DLQ] "
+                f"{event_type} "
+                f"({event_id}) — "
+                f"one or more handlers "
+                f"failed"
+            )
+            write_dlq(
+                event_id,
+                event_type,
+                event_doc
+            )
 
 
 # ============================================================================

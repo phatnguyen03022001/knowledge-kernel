@@ -19,6 +19,12 @@ import argparse
 
 from pathlib import Path
 
+# Test harness always runs in dev mode
+os.environ.setdefault(
+    "KNOWLEDGE_OS_DEV",
+    "1"
+)
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from acp_runner import run_pack

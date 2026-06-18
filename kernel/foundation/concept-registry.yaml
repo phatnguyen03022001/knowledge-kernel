@@ -1,6 +1,6 @@
 # Concept Registry
 # Single source of concept ownership
-# Mọi SSOT phải đăng ký concept trước khi tạo
+# Every SSOT must register its concept before creation
 
 managed-by: knowledge-kernel
 managed-version: 1.0.0

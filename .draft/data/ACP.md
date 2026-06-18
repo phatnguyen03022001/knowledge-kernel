@@ -271,23 +271,23 @@ ACP has 12 layers. Each layer solves one specific problem.
 
 ## 6. Pack Generation Strategy
 
-> *"Ai build pack?" — là câu hỏi trước khi ai execute pack.*
+> *"Who builds the pack?" — is the question before who executes the pack.*
 
-ACP nhận thức rõ đây là bottleneck và thiết kế **two-phase approach** để scale từ 22 tasks lên 500+ mà không sập.
+ACP recognizes this as a bottleneck and designs a **two-phase approach** to scale from 22 tasks to 500+ without collapse.
 
 ### Phase 1: Hand-authored with checklist (<50 tasks)
 
 ```
-Claude Code đọc SSOT → viết pack tay → checklist enforce consistency
+Claude Code reads SSOT → hand-writes pack → checklist enforces consistency
                             ↓
                Layer-zero, anti_patterns, invariants
-               được ghi theo template mental model
+               written following template mental model
                             ↓
-               Explicit bottleneck: O(~10 phút/pack)
-               Nhưng 22 tasks × 10 phút = 3.7 tiếng → acceptable
+               Explicit bottleneck: O(~10 min/pack)
+               But 22 tasks × 10 min = 3.7 hours → acceptable
 ```
 
-**Cơ chế:** Checklist thay vì automation. Mỗi pack phải pass self-review checklist trước khi commit:
+**Mechanism:** Checklist instead of automation. Each pack must pass a self-review checklist before commit:
 
 ```yaml
 checklist:
@@ -298,15 +298,15 @@ checklist:
   - acceptance_criteria.objective: "≥3 machine-verifiable checks"
 ```
 
-**Tại sao không automate ngay?**
-- SSOT đang hình thành (chưa stable schema để extract)
-- Chưa biết template nào hiệu quả — cần human iteration để discovery
-- 22 tasks × 10 phút = ~3.7 tiếng — không phải bottleneck lớn nhất
+**Why not automate immediately?**
+- SSOT is still forming (no stable schema to extract from yet)
+- Don't yet know which templates are effective — need human iteration for discovery
+- 22 tasks × 10 min = ~3.7 hours — not the biggest bottleneck
 
 ### Phase 2: Auto-generated from SSOT (>50 tasks)
 
 ```
-DeepSeek đọc SSOT → template extraction → ACP pack
+DeepSeek reads SSOT → template extraction → ACP pack
                             ↓
   layer_zero.project_context = template, not free-text paragraph
   "{{project.name}} is a {{project.type}} using {{project.stack}}"
@@ -315,7 +315,7 @@ DeepSeek đọc SSOT → template extraction → ACP pack
   "map SSOT entity 'Memo' → output_schema. FK from relationship 'belongs_to'"
 ```
 
-**Template extraction rule** thay vì free-text paragraph:
+**Template extraction rule** instead of free-text paragraph:
 
 ```yaml
 # Phase 1: human note
@@ -333,7 +333,7 @@ extraction_rule:
 
 ### Accumulation principle
 
-Mỗi pack hand-written ở Phase 1 **phải** ghi lại `extraction_rule` (dù chỉ là note 1 dòng). Qua 30-40 packs, các extraction rules này hợp thành template catalog đủ để Phase 2 tự động hóa.
+Every hand-written pack in Phase 1 **must** record an `extraction_rule` (even if just a one-line note). After 30-40 packs, these extraction rules coalesce into a template catalog sufficient to automate Phase 2.
 
 | | Phase 1 | Phase 2 |
 |---|---|---|

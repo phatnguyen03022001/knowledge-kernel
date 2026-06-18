@@ -1,15 +1,15 @@
 # Knowledge OS — Structure
 
-> Cấu trúc chuẩn đầu vào (pre-phase). Luôn phản ánh quyết định đã được đồng thuận.
-> Xem `structure-log.md` để biết lịch sử thay đổi và phản biện.
+> Canonical input structure (pre-phase). Always reflects consensus decisions.
+> See `structure-log.md` for change history and counterarguments.
 >
-> **Tầm nhìn:** Event-sourced, governance-bound, AI-executable knowledge kernel.
-> Không phải document system hay project structure — mà là operating system cho AI-driven knowledge workflows.
-> Có thể tách thành standalone template cho AI-native projects (B2B, B2C, hybrid).
+> **Vision:** Event-sourced, governance-bound, AI-executable knowledge kernel.
+> Not a document system or project structure — but an operating system for AI-driven knowledge workflows.
+> Can be extracted into a standalone template for AI-native projects (B2B, B2C, hybrid).
 
 ---
 
-## Flow tổng thể
+## Overall Flow
 
 ```
 Foundation
@@ -26,7 +26,7 @@ Archive
 
 **Correction loop:**
 ```
-Research mới
+New Research
     ↓
 Proposal (correction event)
     ↓
@@ -41,7 +41,7 @@ Closure
 
 ## Governance model (3-tier)
 
-Mọi cơ chế trong hệ thống đều vận hành bởi 3 lớp quyền:
+Every mechanism in the system operates under 3 authority layers:
 
 ```
 AUTHORS
@@ -59,11 +59,11 @@ SYSTEM GUARDIAN
     → enforce correction linkage
 ```
 
-### Nguyên tắc nền
+### Core Principles
 
-> Governance không phải là "ai có quyền", mà là "ai bị buộc phải chịu trách nhiệm khi có trạng thái không hợp lệ".
+> Governance isn't about "who has power," but "who is forced to take responsibility when an invalid state exists."
 
-### Accountability closure loop cho mọi hành động
+### Accountability closure loop for every action
 
 ```
 Detection (system)
@@ -81,54 +81,54 @@ Validation (system)
 
 ## Domain model
 
-Domain không phải taxonomy (phân loại chủ đề). Domain là **vùng chịu trách nhiệm quyết định đúng/sai cuối cùng cho một loại câu hỏi**.
+Domains are not taxonomies (topic classification). A domain is a **zone of final decision responsibility for a class of questions**.
 
 ### 3 domains
 
-| Domain | Trả lời câu hỏi | Ví dụ SSOT |
-|--------|----------------|------------|
-| **Structural** | Hệ thống tổ chức tri thức như thế nào? | product-vision, knowledge-model, dependency-map |
-| **Pedagogical** | Con người học như thế nào? | learning-science, pedagogy, skill-graph |
-| **Evaluation** | Đánh giá đúng/sai như thế nào? | assessment-model, mastery-model, difficulty-model |
+| Domain | Answers the question | Example SSOT |
+|--------|---------------------|------------|
+| **Structural** | How is knowledge organized as a system? | product-vision, knowledge-model, dependency-map |
+| **Pedagogical** | How do humans learn? | learning-science, pedagogy, skill-graph |
+| **Evaluation** | How is correctness assessed? | assessment-model, mastery-model, difficulty-model |
 
 ### Primary + Secondary ownership
 
-Domain overlap là mặc định, không phải bug. Một SSOT thuộc nhiều domain là bình thường. Giải pháp:
+Domain overlap is the default, not a bug. An SSOT belonging to multiple domains is normal. Solution:
 
 ```yaml
-primary-domain: evaluation          # quyết định "định nghĩa đúng/sai"
-secondary-domains:                  # consultation, không veto
+primary-domain: evaluation          # decides "definition of correct/incorrect"
+secondary-domains:                  # consultation, no veto power
   - structural
   - pedagogical
 ```
 
-Quy tắc:
+Rules:
 
-| Loại quyết định | Ai quyết |
-|----------------|----------|
+| Decision type | Who decides |
+|---------------|-------------|
 | Definition correctness | Primary domain owner |
 | Structural representation | Secondary (structural) |
 | Pedagogy interpretation | Secondary (pedagogical) |
 
 ---
 
-## Bootstrap — 3 phase
+## Bootstrap — 3 phases
 
-Hệ thống cold-start không thể có decentralized governance ngay. Cần bootstrapping authority.
+A cold-start system cannot have decentralized governance immediately. It needs bootstrapping authority.
 
 ### 🟢 Phase 0 — Seed Authority (Day 0)
 
-1 người duy nhất (seed owner):
+1 single person (seed owner):
 - Define domains
 - Assign domain owners
 - Approve first SSOT
 - Initialize concept registry
 
-> Domain owner CANNOT self-assign. Seed owner assign.
+> Domain owner CANNOT self-assign. Seed owner assigns.
 
 ### 🟡 Phase 1 — Domain Bootstrap (Day 1–7)
 
-Seed owner tạo:
+Seed owner creates:
 ```
 domains:
   structural:   { owner: person-a }
@@ -136,82 +136,82 @@ domains:
   evaluation:   { owner: person-c }
 ```
 
-Domain owners bắt đầu vận hành: approve corrections, resolve concept overlap.
+Domain owners begin operating: approve corrections, resolve concept overlap.
 
 ### 🔵 Phase 2 — Distributed Governance (Day 7+)
 
-Seed owner chuyển thành observer / override authority (rare use).
+Seed owner transitions to observer / override authority (rare use).
 - Domain owners govern
 - System enforces
 - Authors operate
-- Seed chỉ can thiệp khi system deadlock
+- Seed only intervenes on system deadlock
 
-> Mọi system phân quyền đều cần một "initial arbitrary authority" để tạo trật tự đầu tiên.
+> Every distributed system needs an "initial arbitrary authority" to create the first order.
 
 ---
 
 ## Anti-death constraints
 
-> Governance systems không chết vì sai design. Chúng chết vì không có cơ chế bắt buộc tiến trình phải tiếp tục di chuyển.
+> Governance systems don't die from bad design. They die from lacking mechanisms that force progress to keep moving.
 
-4 lớp chống sụp đổ, áp dụng xuyên suốt hệ thống:
+4 layers of collapse prevention, applied across the entire system:
 
 ### 1. Flow enforcement
 
-Mọi item trong system phải có đường đi và điểm kết thúc:
+Every item in the system must have a path and an endpoint:
 
-| Component | Yêu cầu |
-|-----------|---------|
-| **Inbox** | Mỗi item phải có 1 trong 3 outcome: promote → SSOT, convert → research active, discard → abandoned |
-| **Correction** | Mỗi event phải có status: open → applied/rejected/superseded |
-| **Domain** | Mỗi domain phải luôn có owner. Nếu không → BLOCKED STATE → trigger assignment workflow |
+| Component | Requirement |
+|-----------|-------------|
+| **Inbox** | Every item must have 1 of 3 outcomes: promote → SSOT, convert → research active, discard → abandoned |
+| **Correction** | Every event must have status: open → applied/rejected/superseded |
+| **Domain** | Every domain must always have an owner. If not → BLOCKED STATE → trigger assignment workflow |
 
 ### 2. Time enforcement
 
-Mọi trạng thái treo đều có hạn:
+Every stalled state has a deadline:
 
-| Constraint | Giá trị | Áp dụng cho |
-|------------|---------|-------------|
-| **Inbox TTL** | 7 ngày | Item quá hạn → INVALID STATE |
+| Constraint | Value | Applies to |
+|------------|-------|------------|
+| **Inbox TTL** | 7 days | Expired item → INVALID STATE |
 | **Correction cycle** | 48h | Domain owner review window |
-| **Seed phase** | 30 ngày | Seed owner tự động mất quyền write sau Day 30 |
-| **SSOT review-by** | Theo frontmatter | `review-by < today` → flag |
+| **Seed phase** | 30 days | Seed owner auto-loses write permission after Day 30 |
+| **SSOT review-by** | Per frontmatter | `review-by < today` → flag |
 
 ### 3. Cap enforcement
 
-Chống quá tải bộ xử lý (domain owners):
+Prevents processor overload (domain owners):
 
-| Cap | Giá trị |
-|-----|---------|
-| **Inbox WIP** | 20 items tối đa. Vượt → block new intake hoặc force prioritization |
+| Cap | Value |
+|-----|-------|
+| **Inbox WIP** | 20 items max. Exceeded → block new intake or force prioritization |
 | **Correction per cycle** | 20 per domain per cycle. Excess → deferred queue |
 
 ### 4. Role decay enforcement
 
-Quyền hạn phải có vòng đời:
+Authority must have a lifecycle:
 
 | Role | Decay | After |
 |------|-------|-------|
-| **Seed owner** | Write permission → chỉ còn override | Day 30 |
-| **Seed owner** | Không thể tạo domain mới | Day 7 |
-| **Domain owner** | Ổn định, không decay | — |
+| **Seed owner** | Write permission → override only | Day 30 |
+| **Seed owner** | Cannot create new domains | Day 7 |
+| **Domain owner** | Stable, no decay | — |
 | **System Guardian** | Invariant | — |
 
 ### Correction tiering
 
-Chống domain owner bottleneck. 3 levels:
+Prevents domain owner bottleneck. 3 levels:
 
-| Level | Loại | Xử lý bởi | Ví dụ |
-|-------|------|-----------|-------|
+| Level | Type | Handled by | Example |
+|-------|------|-----------|---------|
 | **L1** | Trivial — auto-merge | System / Author | typo, link update, metadata mismatch |
-| **L2** | Domain review required | Domain owner | thay đổi nội dung, correction thật |
-| **L3** | Multi-domain arbitration | Nhiều domain owners | conflict giữa primary và secondary domain |
+| **L2** | Domain review required | Domain owner | content change, real correction |
+| **L3** | Multi-domain arbitration | Multiple domain owners | conflict between primary and secondary domain |
 
 ---
 
 ## ACP execution runtime
 
-ACP pack = **declarative execution contract + permission-bound action unit**. Không phải script, config, hay workflow doc.
+ACP pack = **declarative execution contract + permission-bound action unit**. Not a script, config, or workflow doc.
 
 ### Canonical pack format
 
@@ -276,8 +276,8 @@ trigger → load pack → validate → execute steps → commit → log
 
 ### Critical rule
 
-> ACP không được tự thay đổi hệ thống ngoài execution boundary.
-> AI chỉ được propose execution plan + fill input. Execution engine mới commit.
+> ACP must not autonomously change the system outside its execution boundary.
+> AI only proposes execution plan + fills input. Execution engine commits.
 
 ---
 
@@ -285,9 +285,9 @@ trigger → load pack → validate → execute steps → commit → log
 
 ### 4 vital signs
 
-| Metric | Đo lường | Health threshold |
+| Metric | Measures | Health threshold |
 |--------|----------|-----------------|
-| **Inbox health** | avg_age, % > TTL | inbox stagnant > 7 ngày → DEGRADED |
+| **Inbox health** | avg_age, % > TTL | inbox stagnant > 7 days → DEGRADED |
 | **Correction health** | open_count, avg_resolution_time | backlog > threshold → DEGRADED |
 | **Graph health** | orphan_count, broken_links | orphan_rate > 10% → DEGRADED |
 | **Governance health** | domains_without_owner, stale_corrections | unowned domain → BLOCKED |
@@ -331,13 +331,13 @@ metrics:
 
 ## Conflict resolution protocol
 
-**Nguyên tắc: hierarchical override with escalation.**
-Không peer-to-peer resolution ở governance level (tránh deadlock).
+**Principle: hierarchical override with escalation.**
+No peer-to-peer resolution at governance level (avoids deadlock).
 
-| Layer | Quyền |
-|-------|-------|
-| **Primary domain owner** | Authoritative mặc định |
-| **Secondary domain** | Không block trực tiếp. Chỉ escalate lên System Guardian |
+| Layer | Authority |
+|-------|-----------|
+| **Primary domain owner** | Default authoritative |
+| **Secondary domain** | Cannot block directly. Only escalate to System Guardian |
 | **System guardian** | Final arbiter |
 
 ### Final system architecture
@@ -360,14 +360,14 @@ Audit logged
 
 ## Event Bus — kernel coordination layer
 
-Event Bus là first-class kernel component, không nằm trong ACP.
+Event Bus is a first-class kernel component, not part of ACP.
 
 ```text
 ACP = execution unit
 Event Bus = coordination layer
 ```
 
-### Kiến trúc
+### Architecture
 
 ```
 Event Publisher
@@ -397,8 +397,8 @@ payload:
     - ssot/learning-model.md
 
 metadata:
-  correlation_id: corr-123       # gom cả workflow chain
-  causation_id: evt-20260618-000 # event nào sinh ra event này
+  correlation_id: corr-123       # groups the entire workflow chain
+  causation_id: evt-20260618-000 # which event spawned this event
 version: 1
 ```
 
@@ -420,7 +420,7 @@ handlers:
 
 ### Replay strategy
 
-Correction events đã immutable → có thể replay.
+Correction events are immutable → replayable.
 
 ```bash
 knowledge-os replay --from evt-001 --to evt-050
@@ -432,7 +432,7 @@ runtime/event-store/2026/06/18/evt-001.yaml
 runtime/event-store/2026/06/18/evt-002.yaml
 ```
 
-Append-only. Không sửa. Không xóa.
+Append-only. No edits. No deletes.
 
 ### ACP + Event Bus relationship
 
@@ -450,9 +450,9 @@ Event Bus → validate-graph, refresh-index
 
 ---
 
-## Guardian — tách thành 3 services
+## Guardian — split into 3 services
 
-System Guardian bị "giải thể" thành 3 role riêng, không còn god-object.
+System Guardian is "dissolved" into 3 separate roles, no longer a god-object.
 
 ### Validator (automatic enforcement)
 
@@ -464,7 +464,7 @@ link validation
 ownership validation
 ```
 
-Trả về: `valid: true/false`. Không quyết định. Không block.
+Returns: `valid: true/false`. Does not decide. Does not block.
 
 ### Auditor (observation)
 
@@ -476,11 +476,11 @@ stagnation reports
 compliance reports
 ```
 
-Không block. Không approve. Chỉ ghi nhận.
+Does not block. Does not approve. Only records.
 
 ### Arbiter (escalation only)
 
-Trách nhiệm duy nhất: resolve domain conflicts.
+Single responsibility: resolve domain conflicts.
 
 ```
 Primary Domain disagrees with Secondary Domain
@@ -488,21 +488,21 @@ Primary Domain disagrees with Secondary Domain
 Escalation Event → Arbiter
 ```
 
-**Arbiter không nằm trên happy path.** Chỉ gọi khi có escalation.
+**Arbiter is not on the happy path.** Only invoked on escalation.
 
-### Guardian flow mới
+### New Guardian flow
 
 ```text
 Permission Check
         ↓
-Validator (auto, không block)
+Validator (auto, non-blocking)
         ↓
 Executor
 ```
 
-Khi không có conflict, Arbiter không xuất hiện.
+When there's no conflict, Arbiter does not appear.
 
-Chỉ khi conflict:
+Only on conflict:
 
 ```text
 Permission Check
@@ -514,9 +514,9 @@ Conflict → Arbiter
 Executor
 ```
 
-### Thư mục
+### Directory
 
-Không thêm `governance/guardian/`. Vì Validator, Auditor, Arbiter là runtime services, không phải knowledge objects.
+No `governance/guardian/` directory. Validator, Auditor, Arbiter are runtime services, not knowledge objects.
 
 ```text
 foundation/
@@ -528,7 +528,7 @@ governance/
   escalation-policy.yaml     # arbiter rules
 ```
 
-### 3-layer separation để thành universal template
+### 3-layer separation for universal template
 
 ```text
 CORE KERNEL (invariants — platform-agnostic)
@@ -555,52 +555,52 @@ PLUGIN LAYER (extensions — B2B / B2C / AI)
 ├── GitHub Actions / CI
 ```
 
-### Core kernel = nội dung chính của file này (foundation, governance, ACP, anti-death)
-### Còn lại = adapter + plugin — design để swappable ngay từ đầu.
+### Core kernel = the main content of this file (foundation, governance, ACP, anti-death)
+### Everything else = adapter + plugin — designed to be swappable from day one.
 
 ### Missing piece: Event bus / IPC layer
 
-Hiện tại system có:
+Currently the system has:
 - Processes (ACP execution)
 - Memory (SSOT + corrections)
 - Governance (domain owners)
 
-**Thiếu:** event-driven coordination layer để ACP packs giao tiếp với nhau.
+**Missing:** event-driven coordination layer so ACP packs can communicate with each other.
 
 ```yaml
-# Mỗi ACP pack trigger từ event, không chỉ manual
+# Each ACP pack triggers from an event, not just manual
 trigger:
   type: event
   event: correction.created | correction.approved | ssot.updated | orphan.detected
 ```
 
-Event bus giúp ACP executions trở thành **inter-process communication (IPC)** cho knowledge OS.
+Event bus turns ACP executions into **inter-process communication (IPC)** for knowledge OS.
 
-### 3 deployment modes — cùng 1 kernel
+### 3 deployment modes — same kernel
 
-| Mode | Storage | Runtime | Khi nào dùng |
+| Mode | Storage | Runtime | When to use |
 |------|---------|---------|-------------|
 | **Dev** | File + YAML + Git | Local Python | Prototype, single dev |
 | **Scale** | PostgreSQL | Server | Team, multi-AI agents |
 | **Cloud** | Distributed | Async ACP engine | Production, multi-tenant |
 
-> **Invariant giữa các mode:** ACP + SSOT + correction loop = event-sourced immutable model.
-> Nếu giữ invariant này, migrate giữa các mode không phá design.
+> **Invariant across modes:** ACP + SSOT + correction loop = event-sourced immutable model.
+> If this invariant holds, migrating between modes doesn't break the design.
 
 ---
 
 ## Projection Layer
 
 ### Purpose
-Event Store → Projection Builder → Current State. Projection là materialized view, không phải source of truth.
+Event Store → Projection Builder → Current State. Projection is a materialized view, not the source of truth.
 
 ### Principles
 
-| Rule | Mô tả |
-|------|-------|
-| **Event Store là canonical** | Mọi thay đổi đến từ ACP → Event → Projection Rebuild. Không sửa projection trực tiếp |
-| **Projection có thể rebuild** | Bất kỳ projection nào cũng tái tạo từ `runtime/event-store/` |
-| **Snapshot là optimization** | Nếu snapshot mất, Event Store + Replay vẫn rebuild được |
+| Rule | Description |
+|------|-------------|
+| **Event Store is canonical** | All changes come from ACP → Event → Projection Rebuild. Never edit projections directly |
+| **Projection is rebuildable** | Any projection can be regenerated from `runtime/event-store/` |
+| **Snapshot is an optimization** | If snapshot is lost, Event Store + Replay can still rebuild |
 
 ### Projection Types
 
@@ -621,15 +621,15 @@ runtime/projections/
 
 ### Replay Policy
 
-| Type | Khi nào | Mô tả |
-|------|---------|-------|
-| **Full Replay** | Projection missing, schema upgrade, corruption detected | Rebuild từ đầu |
+| Type | When | Description |
+|------|------|-------------|
+| **Full Replay** | Projection missing, schema upgrade, corruption detected | Rebuild from scratch |
 | **Incremental** | Default | `last_processed_event` → new events → update projection |
 
 ### Snapshot Policy (V1)
 
 ```
-snapshot every 100 events OR every 24h (điều kiện nào đến trước)
+snapshot every 100 events OR every 24h (whichever comes first)
 runtime/snapshots/
 ```
 
@@ -638,7 +638,7 @@ runtime/snapshots/
 ```
 Event Store
     ↓
-Projection Builder (trigger: projection.rebuild.requested hoặc projection.refresh)
+Projection Builder (trigger: projection.rebuild.requested or projection.refresh)
     ↓
 Projection Files (concept-registry, ownership-registry, graph-health — V1)
 ```
@@ -648,7 +648,7 @@ Projection Files (concept-registry, ownership-registry, graph-health — V1)
 ## ACP Dependency Graph
 
 ### Purpose
-Cho phép handler execution theo DAG thay vì danh sách tuần tự.
+Enables handler execution via DAG instead of sequential list.
 
 ### Pack schema extension
 
@@ -663,10 +663,10 @@ execution:
 ```
 
 ### Execution rules
-- **Root node** (`depends_on: []`) chạy đầu tiên.
-- **Dependency completion**: Node chỉ chạy khi toàn bộ dependency success.
+- **Root node** (`depends_on: []`) runs first.
+- **Dependency completion**: Node only runs when all dependencies succeed.
 - **Failure propagation**: Dependency failed → downstream skipped.
-- **V1**: Topological order, single-thread. Không worker pool.
+- **V1**: Topological order, single-thread. No worker pool.
 
 ---
 
@@ -688,14 +688,14 @@ retry_count: 3
 ```
 
 ### Retry policy (V1)
-`retry = 3` → nếu fail → DLQ.
+`retry = 3` → if failed → DLQ.
 
 ### Reprocessing
 Manual only:
 ```bash
 python3 acp_event_bus.py --reprocess-dlq EVENT_ID
 ```
-Không tự động replay DLQ.
+No automatic DLQ replay.
 
 ---
 
@@ -717,11 +717,11 @@ status: success
 ```
 
 ### Delivery semantics (V1)
-**At-Least-Once.** Lý do: đơn giản, file-based, phù hợp dev mode.
+**At-Least-Once.** Rationale: simple, file-based, suitable for dev mode.
 
-**Requirement:** Mọi ACP pack phải idempotent (kiểm tra patch đã áp dụng chưa trước khi apply).
+**Requirement:** Every ACP pack must be idempotent (check if patch already applied before applying).
 
-**Future:** Exactly Once nếu chuyển sang transactional queue.
+**Future:** Exactly Once when migrating to transactional queue.
 
 ---
 
@@ -734,8 +734,8 @@ status: success
 ```
 knowledge-kernel/
 
-├── kernel/          ← Invariant. Bắt buộc. Kernel-managed. Không sửa trực tiếp.
-├── starter-packs/   ← Mẫu ACP packs. Có thể tùy chỉnh.
+├── kernel/          ← Invariant. Required. Kernel-managed. Not directly editable.
+├── starter-packs/   ← ACP pack templates. Customizable.
 ├── adapters/        ← Swappable. Dev (file) / Scale (postgres) / Cloud (distributed).
 ├── plugins/         ← Optional. AI agent, dashboard, B2B, B2C.
 └── cli/             ← knowledge-os CLI.
@@ -773,7 +773,7 @@ kernel/
     event-bus.py
     validators.py
 
-  knowledge/              ← trống, chỉ .gitkeep
+  knowledge/              ← empty, .gitkeep only
     inbox/
     research/active/
     research/abandoned/
@@ -792,41 +792,41 @@ kernel/
 ### Managed vs Owned
 
 ```yaml
-# File header cho kernel-managed files
+# File header for kernel-managed files
 managed-by: knowledge-kernel
 managed-version: 1.0.0
 ```
 
-| Layer | Quản lý bởi | Có thể sửa? |
-|-------|-------------|-------------|
-| `kernel/foundation/` | Kernel | Không sửa trực tiếp |
-| `kernel/governance/` | Kernel | Không sửa trực tiếp |
-| `kernel/runtime/` | Kernel | Không sửa trực tiếp |
-| `knowledge/` | Project | Sửa thoải mái |
-| `corrections/` | Project | Sửa (qua ACP) |
-| `starter-packs/` | Kernel+Project | Copy ra, tùy chỉnh |
+| Layer | Managed by | Editable? |
+|-------|-----------|-----------|
+| `kernel/foundation/` | Kernel | Not directly editable |
+| `kernel/governance/` | Kernel | Not directly editable |
+| `kernel/runtime/` | Kernel | Not directly editable |
+| `knowledge/` | Project | Freely editable |
+| `corrections/` | Project | Editable (via ACP) |
+| `starter-packs/` | Kernel+Project | Copy out, customize |
 
 ### Init & Upgrade
 
 ```bash
-# Init project từ kernel
+# Init project from kernel
 knowledge-os init my-project
-→ tạo my-project/ với kernel files + .knowledge-os/ manifest
+→ creates my-project/ with kernel files + .knowledge-os/ manifest
 
-# Upgrade kernel (không đụng project content)
+# Upgrade kernel (does not touch project content)
 knowledge-os upgrade
-→ update kernel/foundation/*, kernel/runtime/*, starter-packs/*
-→ không động knowledge/*, archive/*, corrections/*
+→ updates kernel/foundation/*, kernel/runtime/*, starter-packs/*
+→ does not touch knowledge/*, archive/*, corrections/*
 ```
 
 ### Template principle
 
-> Template chỉ chứa những thứ định nghĩa cách hệ thống vận hành.
-> Project chỉ chứa những thứ hệ thống vận hành lên.
+> Template contains only what defines how the system operates.
+> Project contains only what the system operates on.
 
 ---
 
-## Cấu trúc thư mục
+## Directory structure
 
 ```
 /knowledge-os
@@ -847,9 +847,9 @@ governance/
   policy-management.md
   change-management.md
   decision-records.md
-  escalation-policy.yaml         ← arbiter: khi nào escalate, ai quyết
+  escalation-policy.yaml         ← arbiter: when to escalate, who decides
 
-  corrections/                   ← audit trail cho mọi thay đổi SSOT
+  corrections/                   ← audit trail for all SSOT changes
     00-index.md
 
   subscriptions/                 ← event → handler mapping
@@ -870,19 +870,19 @@ governance/
 
 knowledge/
 
-  inbox/               ← tri thức mới, chưa phân loại
+  inbox/               ← new knowledge, unclassified
 
   research/
-    active/            ← đang được nghiên cứu, còn giá trị
+    active/            ← under active research, still valuable
       learning-science.md
       pedagogy.md
       language-acquisition.md
       benchmark-analysis.md
       literature-review.md
 
-    abandoned/         ← ngừng theo đuổi (không sai, chỉ không ai làm)
-    superseded/        ← đã được thay thế bởi tri thức mới hơn
-    refuted/           ← đã được chứng minh là sai
+    abandoned/         ← discontinued (not wrong, just no one working on it)
+    superseded/        ← replaced by newer knowledge
+    refuted/           ← proven incorrect
 
   ssot/
     01-product-vision.md
@@ -924,55 +924,55 @@ archive/
 
 ---
 
-## Quy tắc quan trọng
+## Important Rules
 
 ### Structural rules
 
-| Rule | Mô tả |
-|------|-------|
-| **Không thêm folder công nghệ** | Không `ai/`, `rag/`, `infra/`, `roadmap/`, `product/`, `quality/` |
-| **ACP là con của governance** | Không tách thành folder riêng |
-| **Inbox là điểm vào duy nhất** | Mọi tri thức mới qua inbox trước khi phân loại |
-| **Archive = soft delete** | Không xóa, chỉ chuyển vào archive |
+| Rule | Description |
+|------|-------------|
+| **No technology-named folders** | No `ai/`, `rag/`, `infra/`, `roadmap/`, `product/`, `quality/` |
+| **ACP is a child of governance** | Do not split into separate folder |
+| **Inbox is the single entry point** | All new knowledge enters through inbox before classification |
+| **Archive = soft delete** | Never delete, only move to archive |
 
 ### Knowledge rules
 
-| Rule | Mô tả |
-|------|-------|
-| **SSOT phải có frontmatter** | Mỗi SSOT bắt buộc: `status`, `last-reviewed`, `review-by`, `sources`, `links`, `owner` |
+| Rule | Description |
+|------|-------------|
+| **SSOT must have frontmatter** | Every SSOT requires: `status`, `last-reviewed`, `review-by`, `sources`, `links`, `owner` |
 | **2-layer linking** | `links:` = dependency graph, `sources:` = provenance |
-| **Provenance bắt buộc** | Không có nội dung nào là chính thức nếu không nằm trong SSOT có `sources` |
-| **Research phân loại hậu kỳ** | `abandoned/`, `superseded/`, `refuted/` thay vì gộp chung "archived" |
-| **Một concept một owner** | `concept-registry.yaml` là single source of concept ownership |
-| **Registry không xóa** | Concept deprecated → cập nhật `status`, không xóa entry |
+| **Provenance is mandatory** | No content is canonical unless it resides in an SSOT with `sources` |
+| **Research is classified post-hoc** | `abandoned/`, `superseded/`, `refuted/` instead of a generic "archived" bucket |
+| **One concept, one owner** | `concept-registry.yaml` is the single source of concept ownership |
+| **Registry never deletes** | Deprecated concept → update `status`, do not remove entry |
 
 ### Governance rules
 
-| Rule | Mô tả |
-|------|-------|
-| **SSOT không bị overwrite trực tiếp** | Mọi thay đổi SSOT phải qua correction event |
-| **Correction event immutable** | Không sửa, chỉ supersede (giống Git commit chain) |
-| **Broken link không tự sửa** | System chỉ REPORT. Author maintain. Domain owner resolve |
-| **Không TTL cho correction** | Tri thức không expire theo thời gian. Chỉ expire theo validity |
+| Rule | Description |
+|------|-------------|
+| **SSOT is never directly overwritten** | All SSOT changes must go through a correction event |
+| **Correction events are immutable** | Never edit, only supersede (like Git commit chain) |
+| **Broken links are never auto-fixed** | System only REPORTS. Author maintains. Domain owner resolves |
+| **No TTL for corrections** | Knowledge does not expire by time. It expires by validity |
 
 ### Anti-death rules
 
-| Rule | Mô tả |
-|------|-------|
-| **Inbox có TTL 7 ngày** | Item quá hạn → INVALID STATE |
-| **Inbox WIP limit = 20** | Block new intake nếu vượt |
-| **Inbox cần outcome** | Mỗi item phải kết thúc: promote → SSOT, discard → abandon, hoặc convert → research active |
-| **Inbox stagnation auto-report** | Nếu inbox không processed → system auto-generates stagnation report |
+| Rule | Description |
+|------|-------------|
+| **Inbox has 7-day TTL** | Expired item → INVALID STATE |
+| **Inbox WIP limit = 20** | Block new intake if exceeded |
+| **Inbox needs outcome** | Every item must conclude: promote → SSOT, discard → abandon, or convert → research active |
+| **Inbox stagnation auto-report** | If inbox unprocessed → system auto-generates stagnation report |
 | **Correction 3-tier** | L1 auto-merge, L2 domain review, L3 multi-domain arbitration |
 | **Correction cycle 48h** | Domain owner review window |
 | **Correction cap 20/cycle** | Per domain per cycle. Excess → deferred queue |
-| **Seed owner TTL 30 ngày** | Auto mất quyền write, chỉ còn override |
-| **Seed không tạo domain mới sau Day 7** | Domain creation → system process (domain proposal + council approval) |
-| **Orphan domain detector** | Domain không owner → BLOCKED STATE → trigger assignment |
+| **Seed owner TTL 30 days** | Auto-loses write permission, override only |
+| **Seed cannot create new domains after Day 7** | Domain creation → system process (domain proposal + council approval) |
+| **Orphan domain detector** | Domain without owner → BLOCKED STATE → trigger assignment |
 
 ---
 
-## Mẫu frontmatter cho SSOT
+## SSOT frontmatter template
 
 ```yaml
 ---
@@ -999,7 +999,7 @@ secondary-domains:
 
 ---
 
-## Mẫu correction event
+## Correction event template
 
 `governance/corrections/2026-06-18-learning-model-correction.md`:
 
@@ -1015,7 +1015,7 @@ type: partial-correction        # partial-correction | full-replacement | deprec
 source:
   - research/active/new-study.md
 status: open                    # open → applied | rejected | superseded
-domain-owner: learning-domain   # người approve
+domain-owner: learning-domain   # approver
 rationale: >
   New study refutes the assumption that...
 ---
@@ -1023,7 +1023,7 @@ rationale: >
 
 ---
 
-## Mẫu concept-registry.yaml
+## concept-registry.yaml template
 
 ```yaml
 learning-model:
@@ -1043,16 +1043,16 @@ assessment-framework:
 
 ## ACP Packs
 
-ACP pack = **executable governance procedure** — không phải static confighet.
+ACP pack = **executable governance procedure** — not a static config.
 
-Mỗi pack là:
-- Quy trình có thể thực thi
-- Có quyền (gọi đúng domain owner)
-- Có validation rules
-- Có audit trail
+Each pack is:
+- An executable procedure
+- Permission-bound (calls the right domain owner)
+- Has validation rules
+- Has an audit trail
 
 Lifecycle: `propose → validate → execute → audit`
 
-Ai tạo ACP packs:
+Who creates ACP packs:
 - **Phase 0–1:** Seed owner
 - **Phase 2:** Domain owners (within their domain)

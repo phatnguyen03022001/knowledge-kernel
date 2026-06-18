@@ -50,6 +50,7 @@ audit_logs/
 
 import os
 import json
+import time
 import uuid
 import yaml
 import shutil
@@ -263,6 +264,50 @@ class TransactionManager:
 # Event Store
 # ============================================================================
 
+def _acquire_event_lock(
+    day_dir: Path,
+    timeout: float = 5.0
+) -> bool:
+    """
+    Acquire exclusive file lock for event emission.
+
+    Uses O_CREAT|O_EXCL for atomic lock creation.
+    Retries with exponential backoff until timeout.
+    """
+
+    lock_path = day_dir / ".emit.lock"
+    deadline = time.time() + timeout
+    delay = 0.005
+
+    while time.time() < deadline:
+        try:
+            fd = os.open(
+                str(lock_path),
+                os.O_CREAT | os.O_EXCL | os.O_RDWR,
+                0o644
+            )
+            os.close(fd)
+            return True
+        except FileExistsError:
+            time.sleep(delay)
+            delay = min(delay * 2, 0.2)
+
+    return False
+
+
+def _release_event_lock(
+    day_dir: Path
+) -> None:
+    """Release event emission lock."""
+
+    lock_path = day_dir / ".emit.lock"
+
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def next_event_sequence(
     event_day_dir: Path
 ) -> int:
@@ -296,6 +341,9 @@ def emit_event(
 ) -> Dict[str, Any]:
     """
     Emit append-only event envelope.
+
+    Thread-safe via file lock
+    per day directory.
     """
 
     now = datetime.utcnow()
@@ -312,33 +360,43 @@ def emit_event(
         exist_ok=True
     )
 
-    seq = next_event_sequence(day_dir)
+    if not _acquire_event_lock(day_dir):
+        raise ACPRunnerError(
+            "Could not acquire event lock "
+            f"for {day_dir}"
+        )
 
-    event = {
-        "id": str(uuid.uuid4()),
-        "type": event_type,
-        "timestamp": utc_now(),
-        "source": {
-            "component": source_component,
-            "entity": {
-                "type": source_entity_type,
-                "id": source_entity_id
-            }
-        },
-        "payload": payload,
-        "metadata": {
-            "correlation_id": correlation_id,
-            "causation_id": causation_id
-        },
-        "version": 1
-    }
+    try:
+        seq = next_event_sequence(day_dir)
 
-    event_path = (
-        day_dir
-        / f"evt-{seq:03d}.yaml"
-    )
+        event = {
+            "id": str(uuid.uuid4()),
+            "type": event_type,
+            "timestamp": utc_now(),
+            "source": {
+                "component": source_component,
+                "entity": {
+                    "type": source_entity_type,
+                    "id": source_entity_id
+                }
+            },
+            "payload": payload,
+            "metadata": {
+                "correlation_id": correlation_id,
+                "causation_id": causation_id
+            },
+            "version": 1
+        }
 
-    save_yaml(event_path, event)
+        event_path = (
+            day_dir
+            / f"evt-{seq:03d}.yaml"
+        )
+
+        save_yaml(event_path, event)
+
+    finally:
+        _release_event_lock(day_dir)
 
     return event
 
@@ -464,12 +522,15 @@ def run_validators(
 
     results = []
 
-    required = (
+    raw_required = (
         pack.get("validation", {})
         .get("requires", [])
     )
 
-    for validator_name in required:
+    if not isinstance(raw_required, list):
+        raw_required = []
+
+    for validator_name in raw_required:
 
         fn = VALIDATOR_REGISTRY.get(
             validator_name
@@ -530,12 +591,15 @@ def check_permissions(
     Validate ACP permissions.
     """
 
-    required = (
+    raw_required = (
         pack.get("permissions", {})
         .get("requires", {})
     )
 
-    if required.get("system_guardian"):
+    if not isinstance(raw_required, dict):
+        raw_required = {}
+
+    if raw_required.get("system_guardian"):
 
         token = context.get(
             "system_guardian_token"
@@ -549,7 +613,7 @@ def check_permissions(
                 "System guardian approval missing"
             )
 
-    if required.get("domain_owner"):
+    if raw_required.get("domain_owner"):
 
         token = context.get(
             "domain_owner_token"
@@ -788,9 +852,20 @@ def collect_correction_metrics_fn(context):
     print("[STEP] collect_correction_metrics")
     corr_dir = Path("kernel/governance/corrections")
     items = list(corr_dir.glob("*.md")) if corr_dir.exists() else []
+    open_count = 0
+    for f in items:
+        try:
+            content = f.read_text(encoding="utf-8")
+            if (
+                "status: open" in content
+                or "status: pending" in content
+            ):
+                open_count += 1
+        except Exception:
+            open_count += 1
     context["correction_metrics"] = {
         "count": len(items),
-        "open": sum(1 for _ in items),
+        "open": open_count,
     }
     return context
 
@@ -830,7 +905,7 @@ def compute_health_score_fn(context):
     gov = context.get("governance_metrics", {})
     score = (
         40 * (1 - min(graph.get("orphans", 0) / 10, 1))
-        + 30 * (1 - min(corr.get("count", 0) / 20, 1))
+        + 30 * (1 - min(corr.get("open", 0) / 20, 1))
         + 20 * (1 - min(inbox.get("count", 0) / 20, 1))
         + 10 * (1 if gov.get("canonical", 0) > 0 else 0)
     )
@@ -1152,8 +1227,11 @@ def execute_steps(
 
         try:
             tx.rollback()
-        except Exception:
-            pass
+        except Exception as rb_err:
+            print(
+                "[ROLLBACK-FAILED]",
+                rb_err
+            )
 
         return (
             context,
@@ -1232,10 +1310,19 @@ def run_pack(
         f"{pack['id']} ==="
     )
 
-    check_permissions(
-        pack,
-        context
-    )
+    try:
+        check_permissions(
+            pack,
+            context
+        )
+    except PermissionValidationError:
+        audit_log(
+            pack,
+            "denied: permission",
+            context,
+            []
+        )
+        raise
 
     validator_results = (
         run_validators(
