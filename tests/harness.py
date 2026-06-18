@@ -16,6 +16,7 @@ import yaml
 import json
 import shutil
 import argparse
+import subprocess
 
 from pathlib import Path
 
@@ -40,7 +41,9 @@ from acp_event_bus import (
 # ============================================================================
 
 TESTS_DIR = Path(__file__).parent
+PROJECT_ROOT = TESTS_DIR.parent
 SCENARIOS_DIR = TESTS_DIR / "scenarios"
+CONTRACTS_DIR = TESTS_DIR / "contracts"
 
 RUNTIME_DIR = Path("runtime")
 EVENT_STORE_DIR = RUNTIME_DIR / "event-store"
@@ -293,21 +296,71 @@ def run_scenario(scenario_path):
         return False
 
 
-def run_all():
-    """Run all scenarios."""
-    scenarios = sorted(SCENARIOS_DIR.glob("*.yaml"))
-    if not scenarios:
-        print("No scenarios found in", SCENARIOS_DIR)
-        return True
+def run_contract_tests():
+    """Run all contract test files as subprocesses.
+
+    Contract tests verify ADR commitments at the structural level:
+      - test_layer_isolation.py (A1): import allowlist enforcement
+      - test_determinism.py (C1, C2): multi-run & order-independence determinism
+      - test_ontology_freeze.py (B1, B2, B3): 12-category lock
+      - test_failure_injection.py (D1, D2, D3): failure mode classification
+    """
+    contract_files = sorted(CONTRACTS_DIR.glob("test_*.py"))
+    if not contract_files:
+        print("No contract tests found in", CONTRACTS_DIR)
+        return True, []
 
     results = []
-    for sc in scenarios:
-        results.append(run_scenario(sc))
+    for cf in contract_files:
+        print(f"\n  [CONTRACT] {cf.name}")
+        proc = subprocess.run(
+            [sys.executable, str(cf)],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        passed = proc.returncode == 0
+        results.append(passed)
+
+        # Print output indented
+        for line in proc.stdout.strip().split("\n"):
+            print(f"    {line}")
+        if proc.stderr.strip():
+            for line in proc.stderr.strip().split("\n"):
+                print(f"    [stderr] {line}")
+
+        status = "✅ PASS" if passed else "❌ FAIL"
+        print(f"    {status} (exit={proc.returncode})")
 
     passed = sum(1 for r in results if r)
     failed = len(results) - passed
+    return failed == 0, results
+
+
+def run_all():
+    """Run all scenarios + contract tests."""
+    # --- Phase 1: Scenario tests (YAML) ---
+    scenarios = sorted(SCENARIOS_DIR.glob("*.yaml"))
+    scenario_results = []
+    if scenarios:
+        for sc in scenarios:
+            scenario_results.append(run_scenario(sc))
+    else:
+        print("No scenarios found in", SCENARIOS_DIR)
+
+    # --- Phase 2: Contract tests (Python) ---
     print(f"\n{'='*60}")
-    print(f"TOTAL: {len(results)} | PASS: {passed} | FAIL: {failed}")
+    print(f"CONTRACT TESTS")
+    print(f"{'='*60}")
+    contract_ok, contract_results = run_contract_tests()
+
+    # --- Tally ---
+    all_results = scenario_results + contract_results
+    passed = sum(1 for r in all_results if r)
+    failed = len(all_results) - passed
+    print(f"\n{'='*60}")
+    print(f"TOTAL: {len(all_results)} | PASS: {passed} | FAIL: {failed}")
     print(f"{'='*60}")
 
     return failed == 0
