@@ -1,5 +1,22 @@
 {
   "permissions": {
-    "allow": ["Bash", "Read", "Write", "Edit", "WebSearch", "WebFetch"]
-  }
+    "allow": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "WebSearch",
+      "WebFetch",
+      "Bash(git *)",
+      "Bash(python3 *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(yq *)"
+    ]
+  },
+  "autoCompactEnabled": true
 }
