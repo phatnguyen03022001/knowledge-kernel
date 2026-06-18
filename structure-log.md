@@ -358,6 +358,8 @@
 | **ACP runner impl** | **~100%** | Step registry real, atomic write, event emission, permission token, validator, retry/skip |
 | **Event Bus** | **~95%** | Subscription loader, event matcher, sequential scheduler, listen mode, manual mode |
 | **End-to-end chain** | **~95%** | correction.approved → update-ssot → ssot.updated → validate-graph + refresh-health |
+| **Test harness** | **~100%** | 3/3 PASS, YAML scenario format |
+| **Infrastructure deferral** | **~95%** | Adapter-layer invariant confirmed — no premature scaling |
 
 ---
 
@@ -534,9 +536,24 @@ From a folder structure → an **event-sourced, governance-bound knowledge kerne
 
 ---
 
+### Decision 33: No etcd/Kafka in Phase 1 — adapter-layer invariant
+
+| Field | Value |
+|--------|---------|
+| **Selected** | Defer etcd/Kafka to Phase 2 (PostgreSQL) and Phase 3 (Kafka-class). Phase 1 stays on file-system + Git |
+| **Rejected** | Preemptively adopting distributed infrastructure (etcd/Kafka) for a single-dev bootstrap |
+| **Rationale** | File + YAML + Git provides sufficient consistency (SHA-commit chain), durability (append-only YAML), and replay for a single operator. The trap to avoid: building infrastructure for scale before having a second user. The 3-layer adapter architecture already isolates storage backend from kernel — migration path is designed, not retrofitted |
+| **Current equivalents** | Git = strong consistency (like etcd Raft). Append-only event-store/ = durable log (like Kafka). Single-thread scheduler = coordination (like leader election, but only 1 node exists) |
+| **Migration path** | `adapters/file-system/` → `adapters/postgresql/` (Phase 2, multi-writer) → `adapters/cloud-api/` (Phase 3, multi-tenant). Invariant preserved: ACP + SSOT + correction loop remain event-sourced immutable regardless of backend |
+| **Confidence** | ~95%. Protocol is storage-agnostic by design — no hardcoded file-system assumptions in Event Bus envelope, subscription registry, or replay strategy |
+
+**Source:** Claude (post-Phase-1 architecture review).
+
+---
+
 ## End of Phase 1
 
-Total: **32 decisions** across **11 GPT rounds + Claude filtering**.
+Total: **33 decisions** across **11 GPT rounds + Claude filtering + 1 post-review**.
 
 ```text
 Stage 1 (rounds 1-3):   Structure + anti-garbage mechanisms
@@ -547,6 +564,7 @@ Stage 5 (round 8):      Platform architecture + standalone template vision
 Stage 6 (round 9):      Event Bus + Guardian decomposition
 Stage 7 (round 10):     Kernel distribution packaging
 Stage 8 (round 11):     Final spec (Projection, DAG, DLQ, Idempotency) + Test harness
+Stage 9 (post-review):  Infrastructure deferral — adapter-layer invariant confirmed
 ```
 
 From a folder structure → an **event-sourced, governance-bound knowledge kernel** that can become a universal template for AI-native projects.
