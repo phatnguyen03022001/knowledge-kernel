@@ -38,6 +38,11 @@ ALLOWLIST = {
         "forbidden_imports": {"auditor", "arbiter"},
         # diagnostics is the LAST data-plane layer — it imports nothing beyond stdlib
     },
+    "auditor.py": {
+        "allowed": {"yaml", "json", "hashlib", "pathlib", "datetime", "sys", "argparse", "collections", "typing"},
+        "forbidden_imports": {"arbiter"},
+        # auditor reads diagnostics + projection via file-level, not import
+    },
 }
 
 

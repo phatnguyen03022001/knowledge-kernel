@@ -1,0 +1,53 @@
+# ============================================================================
+# Hard Fail Policies — Type A
+# Any match → immediate FAIL verdict. Overrides all other policies.
+# ============================================================================
+
+managed-by: knowledge-kernel
+managed-version: 1.0.0
+
+policies:
+  - id: FAIL-001
+    name: "Broken reference tolerance: zero"
+    type: hard_fail
+    condition:
+      category: broken-reference
+      threshold: 0
+    message: "System has broken references — structural integrity violated"
+    severity: critical
+
+  - id: FAIL-002
+    name: "Schema violation tolerance: zero"
+    type: hard_fail
+    condition:
+      category: schema-violation
+      threshold: 0
+    message: "YAML schema violation detected"
+    severity: critical
+
+  - id: FAIL-003
+    name: "Tampered event tolerance: zero"
+    type: hard_fail
+    condition:
+      category: tampered-event
+      threshold: 0
+    message: "Event immutability violated — possible data corruption"
+    severity: critical
+
+  - id: FAIL-004
+    name: "Broken causality tolerance: zero"
+    type: hard_fail
+    condition:
+      category: broken-causality
+      threshold: 0
+    message: "Event causality chain broken — history is non-replayable"
+    severity: critical
+
+  - id: FAIL-005
+    name: "Ownership conflict tolerance: zero"
+    type: hard_fail
+    condition:
+      category: ownership-conflict
+      threshold: 0
+    message: "Duplicate concept ownership detected"
+    severity: critical

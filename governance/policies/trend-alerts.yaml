@@ -1,0 +1,41 @@
+# ============================================================================
+# Trend Policies — Type C
+# Uses historical data to detect patterns across multiple runs.
+# Does NOT trigger FAIL — contributes to risk_score only.
+# ============================================================================
+
+managed-by: knowledge-kernel
+managed-version: 1.0.0
+
+policies:
+  - id: TREND-001
+    name: "Degrading health trend"
+    type: trend
+    condition:
+      metric: health_orphan_rate
+      direction: increasing
+      window_runs: 5
+    severity: medium
+    weight: 0.3
+    message: "Orphan rate trending upward over last 5 runs"
+
+  - id: TREND-002
+    name: "Degrading violation trend"
+    type: trend
+    condition:
+      metric: violation_count
+      direction: increasing
+      window_runs: 5
+    severity: high
+    weight: 0.6
+    message: "Violation count trending upward over last 5 runs"
+
+  - id: TREND-003
+    name: "Persistent broken references"
+    type: trend
+    condition:
+      metric: broken-reference_persistence
+      threshold_runs: 3
+    severity: critical
+    weight: 1.0
+    message: "Same broken references persisting across 3+ consecutive runs"

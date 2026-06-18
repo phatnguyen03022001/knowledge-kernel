@@ -1,0 +1,78 @@
+# ============================================================================
+# Risk Policies — Type B
+# Contributes to risk_score. Does NOT trigger immediate FAIL.
+# ============================================================================
+
+managed-by: knowledge-kernel
+managed-version: 1.0.0
+
+policies:
+  - id: RISK-001
+    name: "Incomplete provenance"
+    type: risk
+    condition:
+      category: incomplete-provenance
+      threshold: 0
+    severity: high
+    weight: 0.6
+    message: "SSOT files missing required frontmatter fields"
+
+  - id: RISK-002
+    name: "Missing domain ownership"
+    type: risk
+    condition:
+      category: missing-ownership
+      threshold: 0
+    severity: high
+    weight: 0.6
+    message: "Domain has no assigned owner — BLOCKED STATE risk"
+
+  - id: RISK-003
+    name: "Unlinked correction"
+    type: risk
+    condition:
+      category: unlinked-correction
+      threshold: 0
+    severity: medium
+    weight: 0.3
+    message: "Correction event references no SSOT"
+
+  - id: RISK-004
+    name: "Knowledge decay"
+    type: risk
+    condition:
+      category: knowledge-decay
+      threshold: 10
+    severity: medium
+    weight: 0.3
+    message: "Unreferenced node rate exceeds 10% threshold"
+
+  - id: RISK-005
+    name: "Circular dependency"
+    type: risk
+    condition:
+      category: circular-dependency
+      threshold: 0
+    severity: high
+    weight: 0.6
+    message: "SSOT dependency graph contains cycles"
+
+  - id: RISK-006
+    name: "Clock skew"
+    type: risk
+    condition:
+      category: clock-skew
+      threshold: 0
+    severity: low
+    weight: 0.1
+    message: "Event timestamps show reverse causality (possible clock skew)"
+
+  - id: RISK-007
+    name: "Stale correction"
+    type: risk
+    condition:
+      category: stale-correction
+      threshold: 0
+    severity: medium
+    weight: 0.3
+    message: "Correction open beyond 48h or max attempts exceeded"
