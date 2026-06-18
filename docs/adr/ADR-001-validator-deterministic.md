@@ -19,7 +19,7 @@ Validator is a **pure deterministic constraint engine.** It checks invariants an
 - Validator output is machine-readable and stable (violations list with invariant IDs).
 - Auditor (M3) must be built as a separate layer to provide human-readable interpretation.
 - Any future "smart validation" must be built in M3, never in M1.
-- Validator code is simpler and smaller (~350 lines) because it doesn't need interpretation logic.
+- Validator code is simpler and smaller (~750 lines) because it doesn't need interpretation logic.
 
 ## Alternatives Considered
 - **Smart Validator:** Validator interprets results and suggests fixes. Rejected: blurs M1/M3 boundary, makes replay non-deterministic, creates god-object.
