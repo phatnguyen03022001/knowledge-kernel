@@ -973,6 +973,71 @@ def mark_archive_log_fn(context):
 
 
 # ============================================================================
+# Arbiter-Resolve step implementations
+# ============================================================================
+
+def extract_audit_report_fn(context):
+    """Extract audit report data from escalation event payload."""
+    print("[STEP] extract_audit_report")
+
+    event_doc = context.get("_event", {})
+    payload = event_doc.get("payload", {})
+
+    context["_audit_verdict"] = payload.get("verdict", "PASS")
+    context["_audit_risk_score"] = payload.get("risk_score", 0.0)
+    context["_audit_policy_hits"] = payload.get("policy_hits", [])
+    context["_audit_id"] = payload.get("audit_id", event_doc.get("id", "unknown"))
+    context["_escalation_event_id"] = event_doc.get("id")
+
+    return context
+
+
+def invoke_arbiter_fn(context):
+    """Route audit report through Arbiter."""
+    print("[STEP] invoke_arbiter")
+
+    from kernel.runtime.arbiter import Arbiter
+
+    arb = Arbiter()
+
+    # Build audit report as a simple object duck-typed for Arbiter
+    Audit = type('Audit', (object,), {})
+    audit = Audit()
+    audit.audit_id = context.get("_audit_id", "unknown")
+    audit.verdict = context.get("_audit_verdict", "PASS")
+    audit.risk_score = context.get("_audit_risk_score", 0.0)
+    audit.policy_hits = context.get("_audit_policy_hits", [])
+
+    resolution = arb.route(audit)
+    arb.emit(resolution)  # Existing path: runtime/resolutions/
+
+    context["_resolution"] = resolution
+    context["_resolution_id"] = resolution.resolution_id
+
+    return context
+
+
+def write_escalation_resolved_fn(context):
+    """Write escalation.resolved event to event store."""
+    print("[STEP] write_escalation_resolved")
+
+    resolution = context.get("_resolution")
+    if not resolution:
+        raise StepError("No resolution found in context — invoke_arbiter must run first")
+
+    from kernel.runtime.arbiter import Arbiter
+    arb = Arbiter()
+    event = arb.emit_to_event_store(resolution)
+
+    context["_escalation_resolved_event_id"] = event.get("id")
+    context["_escalation_resolved_path"] = str(
+        Path("runtime") / "event-store" / f"evt-{event.get('id', 'unknown')}.yaml"
+    )
+
+    return context
+
+
+# ============================================================================
 # Generic Mock Steps (still needed for register)
 # ============================================================================
 
@@ -1002,6 +1067,12 @@ HEALTH_STEPS = [
 ARCHIVE_STEPS = [
     "validate_archive_decision", "move_to_archive",
     "update_registry", "mark_archive_log",
+]
+
+# Steps for arbiter-resolve pack (real implementations above)
+ARBITER_STEPS = [
+    "extract_audit_report", "invoke_arbiter",
+    "write_escalation_resolved",
 ]
 
 STEP_REGISTRY: Dict[
@@ -1042,6 +1113,10 @@ STEP_REAL: Dict[str, str] = {
     "move_to_archive": "move_to_archive_fn",
     "update_registry": "update_registry_fn",
     "mark_archive_log": "mark_archive_log_fn",
+    # arbiter-resolve
+    "extract_audit_report": "extract_audit_report_fn",
+    "invoke_arbiter": "invoke_arbiter_fn",
+    "write_escalation_resolved": "write_escalation_resolved_fn",
 }
 
 for step_name, real_fn in STEP_REAL.items():
@@ -1049,7 +1124,7 @@ for step_name, real_fn in STEP_REAL.items():
         STEP_REGISTRY[step_name] = eval(real_fn)
 
 # Remaining steps from lists get mock fallback
-for step_name in set(GRAPH_STEPS + HEALTH_STEPS + ARCHIVE_STEPS) - set(STEP_REAL.keys()):
+for step_name in set(GRAPH_STEPS + HEALTH_STEPS + ARCHIVE_STEPS + ARBITER_STEPS) - set(STEP_REAL.keys()):
     if step_name not in STEP_REGISTRY:
         STEP_REGISTRY[step_name] = mock_step_fn(step_name)
 

@@ -199,6 +199,35 @@ class Arbiter:
 
         return resolution.resolution_id
 
+    def emit_to_event_store(self, resolution):
+        """
+        Write resolution as escalation.resolved event to event store.
+
+        Uses emit_event() from acp_runner which handles:
+        - UUID generation for event ID
+        - ISO8601 timestamp
+        - Canonical event envelope format
+        - Sequential file naming
+        - Directory creation and file locking
+
+        This is the architecturally required path for event bus
+        integration per ADR-004. The existing emit() to
+        runtime/resolutions/ continues to work (dual-write
+        during migration period).
+
+        Returns: event dict (with generated id)
+        """
+        from acp_runner import emit_event
+
+        return emit_event(
+            event_type="escalation.resolved",
+            payload=resolution.to_dict(),
+            correlation_id=resolution.source_audit_id,
+            source_component="arbiter",
+            source_entity_type="m4",
+            source_entity_id="arbiter",
+        )
+
     def recent(self, limit=10):
         """Read recent resolution events (read-only)."""
         events = []

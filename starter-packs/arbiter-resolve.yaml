@@ -1,0 +1,35 @@
+# ACP Pack: Arbiter Resolve
+# Triggered when escalation.created event is emitted.
+# Reads embedded audit data from event payload.
+# Calls Arbiter.route() and Arbiter.emit_to_event_store().
+# Writes escalation.resolved event to event store.
+#
+# This bridges the ADR-004 promise to runtime reality:
+#   escalation.created -> Arbiter.route() -> escalation.resolved
+#
+# See also: ADR-004 (Arbiter externalized),
+#           kernel/governance/subscriptions/escalation-arbiter.yaml
+
+id: arbiter-resolve
+version: 1.0
+
+trigger:
+  type: event
+  event: escalation.created
+
+execution:
+  steps:
+    - extract_audit_report
+    - invoke_arbiter
+    - write_escalation_resolved
+    - emit_event: escalation.resolved
+
+permissions:
+  requires:
+    system_guardian: true
+
+outputs:
+  - escalation.resolved
+
+audit:
+  log_level: full

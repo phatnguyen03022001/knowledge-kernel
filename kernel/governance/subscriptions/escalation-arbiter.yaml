@@ -1,0 +1,12 @@
+# Subscription: escalation.created
+# When Arbiter is needed (domain ownership conflict, unresolved overlap),
+# route to arbiter-resolve pack for binding resolution.
+#
+# This bridges the gap between event bus and Arbiter:
+#   escalation.created event -> arbiter-resolve pack -> escalation.resolved event
+#
+# See also: ADR-004 (Arbiter externalized), event-types.yaml
+
+event: escalation.created
+handlers:
+  - pack: arbiter-resolve
