@@ -1,0 +1,309 @@
+# ============================================================================
+# System Contract — Phase 2 Completion Lock
+# ============================================================================
+# Freezes the M1→M2.1 pipeline as a CLOSED deterministic analysis system.
+# No semantic drift allowed beyond this boundary.
+#
+# This contract is the architectural equivalent of a type system:
+# it defines what each layer MAY and MUST NOT do.
+#
+# ANY change to this file requires:
+#   1. Version bump (managed-version)
+#   2. Cross-layer consistency test re-run
+#   3. Decision log entry in structure-log.md
+# ============================================================================
+
+managed-by: knowledge-kernel
+managed-version: 2.0.0
+status: committed
+phase: phase-2-completion-lock
+
+# ============================================================================
+# 1. GLOBAL INVARIANTS (cross-layer, non-negotiable)
+# ============================================================================
+
+global_invariants:
+  - id: GLB-INV-001
+    name: "no-upstream-mutation"
+    rule: >
+      No layer may modify the output of an upstream layer.
+      M2 reads M1.5 traces — it does NOT edit them.
+      M2.1 reads M2 projections — it does NOT edit them.
+      M3 will read M2.1 diagnostics — it MUST NOT edit them.
+    violation: "ARCHITECTURAL VIOLATION — design review required"
+
+  - id: GLB-INV-002
+    name: "derivability"
+    rule: >
+      Every output of every layer MUST be derivable from the
+      input logs alone. If a layer's output contains information
+      not present in its input, that information MUST come from
+      a declared, versioned data source (invariant spec, category map).
+      No layer may "infer" new facts.
+    violation: "ARCHITECTURAL VIOLATION — layer has invented data"
+
+  - id: GLB-INV-003
+    name: "no-runtime-ontology-expansion"
+    rule: >
+      The diagnostic ontology (12 categories in M2.1) is CLOSED.
+      No layer, including future M3/M4, may create new categories
+      at runtime. Category addition requires a version bump of this
+      contract AND a decision log entry.
+    violation: "ARCHITECTURAL VIOLATION — unauthorized ontology expansion"
+
+  - id: GLB-INV-004
+    name: "classification-origin-singular"
+    rule: >
+      All violation classification MUST originate from M2.1 only.
+      M3 may READ the normalized category but MUST NOT reclassify.
+      M4 may READ the normalized category but MUST NOT reclassify.
+      Single source of truth for classification = M2.1.
+    violation: "ARCHITECTURAL VIOLATION — duplicate classification source"
+
+# ============================================================================
+# 2. LAYER BOUNDARIES (strict capability contracts)
+# ============================================================================
+
+layer_boundaries:
+
+  M1_validator:
+    may:
+      - "Read system state (files, events, registry)"
+      - "Check invariants from validator-invariants.yaml"
+      - "Return REJECT on Layer 1 critical violation"
+      - "Return WARN on Layer 2 threshold violation"
+      - "Return FLAG on Layer 3 governance rule violation"
+    must_not:
+      - "Modify system state"
+      - "Call Arbiter or simulate Arbiter logic"
+      - "Resolve ownership disputes"
+      - "Decide semantic correctness"
+      - "Cache authority or maintain decision memory"
+    output_schema: validator-contract.yaml
+
+  M1.5_tracer:
+    may:
+      - "Record Validator output as immutable trace events"
+      - "Link traces via parent_trace_id (causal chain)"
+      - "Provide read-only trace log, chain, and diff views"
+    must_not:
+      - "Interpret validation results"
+      - "Judge severity of violations"
+      - "Suggest remediation actions"
+      - "Trigger downstream workflows"
+      - "Modify trace events after write"
+    output_schema: >
+      1 trace = 1 complete validator pipeline run.
+      Total order (linear chain). Schema stable (append-only keys).
+
+  M2_projection:
+    may:
+      - "Read traces from M1.5 trace store"
+      - "Read events from event store"
+      - "Build derived views (pure functions)"
+      - "Write projection files to runtime/projections/"
+      - "Full replay (rebuild all views from scratch)"
+    must_not:
+      - "Interpret violation severity or trends"
+      - "Suggest actions based on projection data"
+      - "Modify source traces or events"
+      - "Create new data not derivable from inputs"
+    output_schema: >
+      Views are materialized YAML files. Same input → same output.
+
+  M2.1_diagnostics:
+    may:
+      - "Normalize violations to canonical categories (1:1 map)"
+      - "Classify by severity and category (pure aggregation)"
+      - "Group recurring patterns by fingerprint"
+      - "Track pattern persistence across runs"
+    must_not:
+      - "Create new categories beyond the 12 defined"
+      - "Interpret pattern significance"
+      - "Recommend actions based on patterns"
+      - "Use ML, heuristics, or contextual judgment"
+    output_schema: >
+      {classification, groups, fingerprints}. All rules are boolean
+      expressions over violation data.
+
+  M3_auditor:
+    may:
+      - "Read normalized diagnostics from M2.1"
+      - "Apply policy rules to produce judgment reports"
+      - "Flag system state (HEALTHY, DEGRADED, CRITICAL)"
+    must_not:
+      - "Create or infer new diagnostic categories"
+      - "Reclassify violations (classification is M2.1's job)"
+      - "Override M2.1 grouping logic"
+      - "Modify upstream data"
+    note: "M3 is NOT YET IMPLEMENTED. This contract defines its boundary."
+
+  M4_arbiter:
+    may:
+      - "Read escalation events"
+      - "Emit resolution events (escalation.resolved)"
+      - "Make binding decisions on domain disputes"
+    must_not:
+      - "Interpret diagnostic data (Auditor's job)"
+      - "Modify SSOT or registry directly"
+      - "Create new invariant rules"
+    note: "M4 is NOT YET IMPLEMENTED. This contract defines its boundary."
+
+# ============================================================================
+# 3. EVENT SCHEMA LOCK
+# ============================================================================
+
+event_schema:
+  canonical_fields:
+    - event_id
+    - timestamp
+    - source_layer
+    - trace_id
+    - entity_ref
+    - invariant_id
+    - severity_raw
+    - normalized_category
+    - group_fingerprint
+
+  evolution_rules:
+    - "No field addition allowed without version bump of this contract"
+    - "No field renaming allowed — add new field, deprecate old, never rename"
+    - "No field removal allowed — mark as deprecated, keep in schema"
+    - "Schema version is separate from data version"
+
+  current_schema_version: "2.0.0"
+
+# ============================================================================
+# 4. DIAGNOSTIC ONTOLOGY LOCK
+# ============================================================================
+
+diagnostic_ontology:
+  frozen: true
+  total_categories: 12
+  expansion_rule: >
+    New categories require: (a) new invariant added to
+    validator-invariants.yaml, (b) entry added to CATEGORY_MAP
+    in diagnostics.py, (c) version bump of this contract,
+    (d) decision log entry in structure-log.md.
+
+  categories:
+    structural:
+      - id: broken-reference
+        invariant: S-INV-001
+        description: "A link or source target does not exist"
+      - id: incomplete-provenance
+        invariant: S-INV-002
+        description: "SSOT missing required frontmatter fields"
+      - id: schema-violation
+        invariant: S-INV-003
+        description: "YAML file does not match declared schema"
+
+    governance:
+      - id: missing-ownership
+        invariant: G-INV-001
+        description: "Domain has no assigned owner"
+      - id: ownership-conflict
+        invariant: G-INV-002
+        description: "Two SSOT files claim same concept"
+      - id: unlinked-correction
+        invariant: G-INV-003
+        description: "Correction event references no SSOT"
+
+    events:
+      - id: tampered-event
+        invariant: E-INV-001
+        description: "Event content hash mismatch"
+      - id: broken-causality
+        invariant: E-INV-002
+        description: "Event causation_id references non-existent event"
+
+    health:
+      - id: knowledge-decay
+        invariant: GH-MET-001
+        description: "Unreferenced node rate exceeds 10% threshold"
+      - id: circular-dependency
+        invariant: GH-MET-002
+        description: "SSOT links form a cycle"
+      - id: clock-skew
+        invariant: GH-MET-003
+        description: "Event timestamps show reverse causality"
+
+    governance_rules:
+      - id: stale-correction
+        invariant: GR-POL-001
+        description: "Correction open beyond 48h or max attempts exceeded"
+
+# ============================================================================
+# 5. SEMANTIC BOUNDARY ENFORCEMENT
+# ============================================================================
+
+semantic_boundary:
+  rule: >
+    Any interpretation beyond M2.1 is considered POLICY-LAYER responsibility.
+    Policy-layer decisions (M3 Auditor, M4 Arbiter) MUST NOT influence
+    upstream layers (M1, M1.5, M2, M2.1). The data pipeline is a one-way
+    street: Raw State → Validation → Trace → Projection → Diagnostics.
+    Policy flows in the OPPOSITE direction: Resolution → Escalation → Flag.
+    These two flows MUST NOT intermix.
+
+  data_flow: >
+    M1 → M1.5 → M2 → M2.1 → [M3 → M4]
+    (one-way, no back-propagation)
+
+  policy_flow: >
+    M4 → escalation event → M3 flag → observable in M2.1 history
+    (separate channel, never modifies upstream data)
+
+# ============================================================================
+# 6. CROSS-LAYER CONSISTENCY TESTS
+# ============================================================================
+
+consistency_tests:
+  - id: TEST-CL-001
+    name: "no-semantic-leakage"
+    description: >
+      Run full pipeline. Verify M2.1 output contains ONLY the
+      12 canonical categories. Verify no unregistered category
+      appears in any layer output.
+    pass_condition: "all categories in {broken-reference, incomplete-provenance,
+      schema-violation, missing-ownership, ownership-conflict,
+      unlinked-correction, tampered-event, broken-causality,
+      knowledge-decay, circular-dependency, clock-skew, stale-correction}"
+
+  - id: TEST-CL-002
+    name: "projection-determinism"
+    description: >
+      Run M2 Projection twice on the same trace set.
+      Outputs MUST be byte-identical.
+    pass_condition: "sha256(output_run1) == sha256(output_run2)"
+
+  - id: TEST-CL-003
+    name: "normalization-stability"
+    description: >
+      Run M2.1 Diagnostics twice on the same violation set.
+      Outputs MUST have identical categories, counts, and fingerprints.
+    pass_condition: "classification and groups identical across runs"
+
+  - id: TEST-CL-004
+    name: "full-pipeline-replay"
+    description: >
+      Run M1→M2.1 pipeline 10 times on the same system state.
+      All 10 runs MUST produce identical M2 and M2.1 outputs.
+      (M1.5 traces will differ by timestamp — that's expected.
+      Only M2 and M2.1 must be identical.)
+    pass_condition: "10/10 projection outputs identical, 10/10 diagnostic outputs identical"
+
+# ============================================================================
+# 7. VERSION HISTORY
+# ============================================================================
+
+version_history:
+  - version: "2.0.0"
+    date: "2026-06-18"
+    changes:
+      - "Initial system contract — Phase 2 completion lock"
+      - "Frozen diagnostic ontology (12 categories)"
+      - "Layer boundary contracts for M1 through M4"
+      - "Event schema lock with evolution rules"
+      - "4 cross-layer consistency tests"
+      - "Semantic boundary enforcement rule"

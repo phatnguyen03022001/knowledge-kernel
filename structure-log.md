@@ -737,3 +737,18 @@ Validator ──→ Projection ──→ Health Dashboard
 3. GR-POL-001 convergence undefined — mini-consensus algorithm without rules. Fixed: concrete convergence rule — timeout (48h) + max attempts (3) + mandatory Arbiter action. Arbiter cannot "do nothing." If Arbiter doesn't act → System Guardian escalates to Seed/Council.
 
 **Source:** Claude + second external architecture review (2026-06-18).
+
+---
+
+### Decision 36: Phase 2 Completion Lock — freeze pipeline as closed deterministic system
+
+| Field | Value |
+|--------|---------|
+| **Selected** | Lock M1→M2.1 pipeline before building M3 Auditor. Freeze system contract, event schema, diagnostic ontology. No semantic drift allowed beyond this boundary |
+| **Rejected** | Jumping directly to M3 Auditor without locking the deterministic pipeline |
+| **Rationale** | Without explicit contracts, M3 would inevitably: (a) create new diagnostic categories, (b) reclassify violations, (c) override M2.1 grouping logic — effectively destroying the deterministic boundary. The lock transforms the system from "prototype that can drift" to "stable architecture with enforced boundaries." M3 becomes a pure policy evaluator, not a reasoning engine |
+| **Artifacts committed** | `kernel/contracts/system-contract.yaml` — 7 sections: global invariants (4), layer boundaries (M1-M4), event schema lock, diagnostic ontology lock (12 categories frozen), semantic boundary enforcement, cross-layer consistency tests (4), version history |
+| **Key rules** | (1) No layer may modify upstream output, (2) All outputs must be derivable from input logs, (3) Diagnostic ontology is CLOSED — 12 categories, no runtime expansion, (4) M3 MUST NOT create or infer new categories, (5) Policy flow is separate from data flow — they MUST NOT intermix |
+| **Confidence** | ~95%. This is standard practice in systems that separate data plane from control plane (Kubernetes, Kafka, etcd) |
+
+**Source:** Claude + external architecture review (2026-06-18).
