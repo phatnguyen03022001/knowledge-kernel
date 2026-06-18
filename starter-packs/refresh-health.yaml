@@ -1,0 +1,29 @@
+# ACP Pack: Refresh Health Dashboard
+# Triggered by graph validation or schedule
+
+id: refresh-health
+version: 1.0
+
+trigger:
+  type: event
+  event: graph.validated
+  schedule: daily
+
+execution:
+  steps:
+    - collect_inbox_metrics
+    - collect_correction_metrics
+    - collect_graph_metrics
+    - collect_governance_metrics
+    - compute_health_score
+    - emit_event: health.degraded  # only if below threshold
+
+permissions:
+  requires:
+    system_guardian: true
+
+outputs:
+  - health_report
+
+audit:
+  log_level: minimal

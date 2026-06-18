@@ -1,0 +1,7 @@
+# Subscription: ssot.updated
+# When SSOT is updated, validate graph and refresh health
+
+event: ssot.updated
+handlers:
+  - pack: validate-graph
+  - pack: refresh-health

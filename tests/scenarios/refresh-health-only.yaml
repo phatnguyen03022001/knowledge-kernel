@@ -1,0 +1,24 @@
+# Scenario: Refresh Health
+# Test health dashboard pack independently
+
+id: refresh-health-only
+
+steps:
+
+  - run_pack:
+      pack: starter-packs/refresh-health.yaml
+
+expect:
+
+  status:
+    - success
+
+  audit_logs:
+    - refresh-health
+
+  processed_count: 0
+
+  audit_contents:
+    - pack: refresh-health
+      contains:
+        - success

@@ -1,0 +1,114 @@
+# Concept Registry
+# Single source of concept ownership
+# Mọi SSOT phải đăng ký concept trước khi tạo
+
+managed-by: knowledge-kernel
+managed-version: 1.0.0
+
+concepts:
+
+  product-vision:
+    owner: ssot/01-product-vision.md
+    primary-domain: structural
+    status: canonical
+    created: 2026-06-18
+
+  learning-architecture:
+    owner: ssot/02-learning-architecture.md
+    primary-domain: structural
+    status: canonical
+    created: 2026-06-18
+
+  knowledge-model:
+    owner: ssot/03-knowledge-model.md
+    primary-domain: pedagogical
+    secondary-domains: [structural]
+    status: canonical
+    created: 2026-06-18
+
+  rag-architecture:
+    owner: ssot/04-rag-architecture.md
+    primary-domain: structural
+    status: canonical
+    created: 2026-06-18
+
+  retrieval-strategy:
+    owner: ssot/05-retrieval-strategy.md
+    primary-domain: structural
+    status: canonical
+    created: 2026-06-18
+
+  system-stages:
+    owner: ssot/06-system-stages.md
+    primary-domain: structural
+    status: canonical
+    created: 2026-06-18
+
+  dependency-map:
+    owner: ssot/07-dependency-map.md
+    primary-domain: structural
+    status: canonical
+    created: 2026-06-18
+
+  gap-analysis:
+    owner: ssot/08-gap-analysis.md
+    primary-domain: evaluation
+    status: canonical
+    created: 2026-06-18
+
+  decision-log:
+    owner: ssot/09-decision-log.md
+    primary-domain: structural
+    status: canonical
+    created: 2026-06-18
+
+  skill-graph:
+    owner: learning-model/skill-graph.md
+    primary-domain: evaluation
+    secondary-domains: [pedagogical, structural]
+    status: canonical
+    created: 2026-06-18
+
+  mastery-model:
+    owner: learning-model/mastery-model.md
+    primary-domain: evaluation
+    status: canonical
+    created: 2026-06-18
+
+  mistake-taxonomy:
+    owner: learning-model/mistake-taxonomy.md
+    primary-domain: pedagogical
+    status: canonical
+    created: 2026-06-18
+
+  difficulty-model:
+    owner: learning-model/difficulty-model.md
+    primary-domain: pedagogical
+    secondary-domains: [evaluation]
+    status: canonical
+    created: 2026-06-18
+
+  progress-model:
+    owner: learning-model/progress-model.md
+    primary-domain: evaluation
+    status: canonical
+    created: 2026-06-18
+
+  srs-model:
+    owner: learning-model/srs-model.md
+    primary-domain: pedagogical
+    status: canonical
+    created: 2026-06-18
+
+  assessment-model:
+    owner: learning-model/assessment-model.md
+    primary-domain: evaluation
+    status: canonical
+    created: 2026-06-18
+
+  feedback-model:
+    owner: learning-model/feedback-model.md
+    primary-domain: pedagogical
+    secondary-domains: [evaluation]
+    status: canonical
+    created: 2026-06-18

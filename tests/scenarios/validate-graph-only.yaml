@@ -1,0 +1,22 @@
+# Scenario: Validate Graph Only
+# Test graph pack independently
+
+id: validate-graph-only
+
+steps:
+
+  - run_pack:
+      pack: starter-packs/validate-graph.yaml
+
+expect:
+
+  status:
+    - success
+
+  audit_logs:
+    - validate-graph
+
+  audit_contents:
+    - pack: validate-graph
+      contains:
+        - success

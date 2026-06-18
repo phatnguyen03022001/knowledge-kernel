@@ -1,0 +1,52 @@
+# Event Envelope Schema
+# Core spec — defines event message format for Event Bus
+
+managed-by: knowledge-kernel
+managed-version: 1.0.0
+
+event-envelope:
+  fields:
+    id:
+      type: string
+      required: true
+      pattern: "^evt-\\d{8}-\\d{3,}$"
+      description: "__Unique__ event identifier (date + sequence)"
+
+    type:
+      type: string
+      required: true
+      description: "Event type, e.g. correction.approved, ssot.updated"
+
+    timestamp:
+      type: string
+      format: iso8601
+      required: true
+
+    source:
+      type: object
+      required: true
+      properties:
+        component: { type: string, required: true }
+        entity:
+          type: object
+          properties:
+            type: { type: string }
+            id: { type: string }
+
+    payload:
+      type: object
+      required: true
+
+    metadata:
+      type: object
+      properties:
+        correlation_id:
+          type: string
+          description: Groups all events in one workflow chain
+        causation_id:
+          type: string
+          description: ID of event that caused this one
+
+    version:
+      type: integer
+      default: 1

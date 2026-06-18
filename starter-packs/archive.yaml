@@ -1,0 +1,35 @@
+# ACP Pack: Archive
+# Move deprecated/superseded content to archive
+
+id: archive
+version: 1.0
+
+trigger:
+  type: event
+  event: ssot.superseded
+
+context:
+  requires:
+    - ssot
+    - archive
+
+inputs:
+  - ssot_path
+  - archive_reason
+
+permissions:
+  requires:
+    domain_owner: true
+
+execution:
+  steps:
+    - validate_archive_decision
+    - move_to_archive
+    - update_registry
+    - mark_archive_log
+
+outputs:
+  - archived
+
+audit:
+  log_level: full

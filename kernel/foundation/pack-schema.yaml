@@ -1,0 +1,68 @@
+# ACP Pack Schema
+# Core spec — defines how all packs are structured
+
+managed-by: knowledge-kernel
+managed-version: 1.0.0
+
+pack-schema:
+  fields:
+    id:
+      type: string
+      required: true
+      description: Unique pack identifier
+
+    version:
+      type: string
+      required: false
+      default: "1.0"
+
+    trigger:
+      type: object
+      required: true
+      properties:
+        type: { type: string, enum: [manual, ai, cron, event], required: true }
+        event: { type: string, required: false }
+        schedule: { type: string, required: false }
+
+    context:
+      type: object
+      properties:
+        requires: { type: array, items: string }
+
+    inputs:
+      type: array
+      items: string
+
+    permissions:
+      type: object
+      properties:
+        requires:
+          type: object
+          properties:
+            domain_owner: { type: boolean }
+            system_guardian: { type: boolean }
+
+    validation:
+      type: object
+      properties:
+        requires: { type: array, items: string }
+
+    execution:
+      type: object
+      required: true
+      properties:
+        steps: { type: array, items: string, required: true }
+
+    outputs:
+      type: array
+      items: string
+
+    rollback:
+      type: object
+      properties:
+        enabled: { type: boolean }
+
+    audit:
+      type: object
+      properties:
+        log_level: { type: string, enum: [minimal, full] }

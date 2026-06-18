@@ -1,0 +1,28 @@
+# ACP Pack: Validate Graph
+# Triggered after every SSOT update
+
+id: validate-graph
+version: 1.0
+
+trigger:
+  type: event
+  event: ssot.updated
+
+execution:
+  steps:
+    - build_graph
+    - detect_orphans
+    - detect_broken_links
+    - detect_incoming_link_zero
+    - generate_report
+    - emit_event: graph.validated
+
+permissions:
+  requires:
+    system_guardian: true
+
+outputs:
+  - graph_report
+
+audit:
+  log_level: full

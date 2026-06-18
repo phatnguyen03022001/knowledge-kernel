@@ -1,0 +1,756 @@
+# ============================================================================
+# ACP — Agent Contract Protocol v1.0
+# ============================================================================
+# A protocol for deterministic multi-agent execution.
+#
+# Core principle:
+#   Different models (Claude, GPT, DeepSeek) produce different reasoning.
+#   But they MUST produce the same contract-shaped output.
+#
+# This file is the canonical, machine-readable specification.
+# See ACP.md for human-readable explanation.
+# ============================================================================
+
+meta:
+  name: Agent Contract Protocol
+  version: 1.0
+  codename: "giao-thuc"
+  date: 2026-06-17
+  status: draft
+  description: >
+    Determinstic interface protocol for stateless multi-agent LLM orchestration.
+    Task execution via contract, not conversation.
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 0: PACK IDENTITY
+# ──────────────────────────────────────────────────────────────────────────
+
+identity:
+  pack_id: ACP-PACK-NNN-XX
+    # Format: ACP-{TYPE}-{SEQ}-{VERSION}
+    # TYPE: TASK | PHASE | REVIEW | VERIFY
+    # SEQ: numeric sequence
+    # VERSION: major.minor
+
+  spec: hash_ref
+    # SHA256 content hash of the source SSOT spec this pack was derived from.
+    # Enables cold-start detection: "has the upstream spec changed?"
+
+  parent: pack_id | null
+    # If this pack is a sub-task, link to parent pack.
+
+  protocol_version: "1.0"
+
+  # ── 0.1 Pack Generation Strategy ───────────────────────────────
+  #
+  # How this pack was produced. Two-phase approach:
+  #
+  #   Phase 1 (hand + checklist) — for <50 tasks:
+  #     Claude/human reads SSOT, writes pack by hand.
+  #     A checklist enforces consistency (layer_zero, anti_patterns,
+  #     invariants, etc.) so cold-start quality doesn't drift.
+  #     Explicit bottleneck acknowledged — acceptable at this scale.
+  #
+  #   Phase 2 (auto-generated) — for 50+ tasks:
+  #     DeepSeek reads SSOT → applies extraction rules from
+  #     registered templates → produces ACP pack deterministically.
+  #     layer_zero.project_context is no longer free-text paragraph
+  #     but template: "{{project.name}} is a {{project.type}}..."
+  #     Rules are recorded during Phase 1 hand-authoring for later
+  #     automation.
+  #
+  # Template rules accumulate over time. Each hand-written pack
+  # SHOULD record an extraction_rule so Phase 2 can consume it.
+
+  generation:
+    method: hand | auto
+      # hand = Claude/human reads SSOT, writes pack manually
+      # auto = DeepSeek reads SSOT, extracts via template rules
+
+    source_ssot:
+      path: "ssot/02-domain.yaml"   # SSOT file this pack was derived from
+      section: "entities"            # Section within SSOT (if applicable)
+
+    extraction_rule:
+      description: "How this pack's contract was derived from SSOT"
+      # Phase 1: free-text note for future automation
+      # Phase 2: machine-readable extraction template
+      example: >
+        map SSOT entity 'Memo' → output_schema fields.
+        FK constraints derived from SSOT relationship 'belongs_to: Student'.
+
+    phase_note: >
+      Phase 1 packs are hand-authored with checklist consistency.
+      Phase 2 packs are auto-generated with template extraction.
+      This field documents which phase applies and why.
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 1: CONTRACT — the heart of ACP
+# ──────────────────────────────────────────────────────────────────────────
+#
+# A contract is NOT a prompt. A contract is a bidirectional interface:
+#
+#   input_schema  → defines what the model receives
+#   output_schema → defines what the model MUST produce
+#   invariants    → conditions that must ALWAYS hold (business logic)
+#   violations    → contract breach conditions (ILID: invalid input handled)
+#
+# Any model reading this contract can execute the task independently.
+# No chat history, no project context, no assumptions needed.
+
+contract:
+
+  # ── 1.1 Input Schema ──────────────────────────────────────────────
+
+  input_schema:
+    description: "What this task receives"
+
+    fields:
+      - name: field_name
+        type: string | integer | boolean | array | object | uuid | datetime
+        required: true | false
+        constraints:
+          - non_null
+          - min_length: N
+          - max_items: N
+          - pattern: "regex"
+          - enum: [val1, val2]
+        description: "Human-readable explanation of this field"
+
+    example:
+      field_name: "example_value"
+
+  # ── 1.2 Output Schema ─────────────────────────────────────────────
+
+  output_schema:
+    description: "What this task MUST produce"
+
+    fields:
+      - name: field_name
+        type: string | integer | boolean | array | object
+        required: true | false
+        constraints:
+          - non_null
+          - length == input.field_name.length  # mathematical relation
+          - unique
+          - indexed: true
+        description: "Human-readable explanation"
+
+    example:
+      field_name: "example_output"
+
+  # ── 1.3 Invariants (SEMANTIC correctness) ─────────────────────────
+  #
+  # Schema checks STRUCTURE. Invariants check MEANING.
+  # These are the conditions that define "correct business logic."
+
+  invariants:
+    # KNOWN GAP: Invariant expressions are pseudo-code, not runnable.
+    # "all(output.items, lambda x: x.id is not None)" cannot execute as-is.
+    # At implementation time this needs a concrete execution engine:
+    #   - Python eval() with sandbox (pragmatic for internal tools)
+    #   - Pydantic model validators (natural for Python projects)
+    #   - JSONPath expressions (model-agnostic)
+    # Until then, invariants serve as human-readable business rules
+    # enforced by GPT verifier, not automated validator.
+    # See ACP.md §FAQ "Known Gaps".
+    - id: INV-001
+      description: "Every output item must have a unique identifier"
+      expression: "all(output.items, lambda x: x.id is not None)"
+      severity: critical | warning
+
+    - id: INV-002
+      description: "Result count matches input item count"
+      expression: "len(output.results) == len(input.items)"
+      severity: critical
+
+    - id: INV-003
+      description: "Empty input produces empty output, not error"
+      expression: "len(input.items) == 0 => len(output.results) == 0"
+      severity: warning
+
+  # ── 1.4 Contract Violations ───────────────────────────────────────
+  #
+  # NOT error handling. Contract violations define what counts as
+  # "contract breach" — and what the model should do instead.
+
+  violations:
+    - id: CV-001
+      condition: "input required_field is null"
+      action: reject
+      message: "Return validation error, do not proceed"
+
+    - id: CV-002
+      condition: "output violates output_schema"
+      action: self_repair
+      message: "Fix output to match schema, retry up to 3 times"
+
+    - id: CV-003
+      condition: "invariant INV-001 fails"
+      action: escalate
+      requires_claude: true
+      message: "Business logic invariant violated — requires human review"
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 2: DETERMINISTIC HANDSHAKE
+# ──────────────────────────────────────────────────────────────────────────
+#
+# The handshake ensures that two models — even different models on different
+# sessions — agree on what "done" means.
+#
+# This is NOT a cryptographic proof of identity.
+# This is a SEMANTIC proof of interface compliance.
+
+handshake:
+
+  # ── 2.1 Interface signature (structural fingerprint) ──────────────
+  #
+  # Describes the SHAPE of the contract, not the VALUES.
+  # Two models can produce different output values,
+  # as long as the output SHAPE matches.
+
+  interface_signature:
+    type: structural
+    algorithm: normalized_schema_hash
+    # KNOWN GAP: "normalized" is currently underspecified.
+    # At implementation time, this must pin a concrete standard:
+    #   - JSON Canonicalization Scheme (JCS, RFC 8785) or
+    #   - deterministic field ordering (alphabetical, recursive)
+    # Without pinning, two validators with different serializers
+    # produce different hashes for the same schema → handshake broken.
+    # This is an implementation detail, not a protocol gap.
+    # See ACP.md §FAQ "Known Gaps" for decision rationale.
+    fields:
+      - "output.items[].id:string"
+      - "output.items[].content:string"
+      - "output.total_count:integer"
+      - "output.timestamp:iso8601"
+    description: >
+      SHA256 of the normalized field signatures above.
+      Changes only when the contract shape changes.
+
+  # ── 2.2 Success criteria ─────────────────────────────────────────
+  #
+  # These define what counts as PASS for this task.
+  # Model-independent: any model that meets ALL criteria passes.
+
+  success_criteria:
+    - criterion: "output matches output_schema"
+      validator: schema_validator
+      auto: true
+
+    - criterion: "all critical invariants hold"
+      validator: invariant_runner
+      auto: true
+
+    - criterion: "no contract violations triggered"
+      validator: violation_checker
+      auto: true
+
+    - criterion: "tests pass (if applicable)"
+      validator: pytest_runner
+      auto: true
+      skip_if: "no_tests_defined"
+
+  # ── 2.3 Acceptance criteria (domain-level) ───────────────────────
+  #
+  # These define "does this actually solve the problem?"
+  #
+  # Crucially split into two categories:
+  #
+  #   objective_acceptance   → machine-decidable (95% of criteria)
+  #     Validator enforces automatically. No human judgment needed.
+  #     If these fail → auto-reject. Period.
+  #
+  #   subjective_acceptance  → reviewer-dependent (5% of criteria)
+  #     Requires human or Claude judgment. These are the ONLY source
+  #     of entropy in the system — minimize them explicitly.
+  #
+  # Design intention: 95% machine-decidable, 5% reviewer opinion.
+  # Every acceptance criterion that CAN be made objective, MUST be.
+
+  acceptance_criteria:
+
+    objective_acceptance:
+      - id: OAC-001
+        description: "All repositories inherit BaseRepository"
+        verification: "grep -q 'class.*Repository(BaseRepository)' src/*.py"
+        auto: true
+
+      - id: OAC-002
+        description: "Zero direct database calls"
+        verification: 'grep -r ''sqlite\|\.execute\|\.fetch'' src/ --include=''*.py'' | grep -v ''repository/'' && exit 1 || exit 0'
+        auto: true
+
+      - id: OAC-003
+        description: "Core path test coverage ≥ 80%"
+        verification: "pytest --cov --cov-fail-under=80"
+        auto: true
+
+      - id: OAC-004
+        description: "No forbidden imports (os.system, subprocess, eval)"
+        verification: 'grep -rn ''os.system\|subprocess\|eval('' src/ && exit 1 || exit 0'
+        auto: true
+
+      - id: OAC-005
+        description: "Output matches interface_signature"
+        verification: "signature_matcher (closed-loop step 4)"
+        auto: true
+
+    subjective_acceptance:
+      - id: SAC-001
+        description: "Code readability and maintainability"
+        verification: "claude_gate | human_review"
+        auto: false
+        rationale: >
+          Readability is reviewer-dependent by nature.
+          The protocol does NOT attempt to automate taste.
+          But the number of subjective criteria MUST stay under 5% of total.
+
+      - id: SAC-002
+        description: "Architectural consistency with SSOT vision"
+        verification: "claude_gate"
+        auto: false
+        rationale: >
+              SSOT alignment requires understanding the full project
+              context — something no single-task validator can do.
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 3: EXECUTION BOUNDARY
+# ──────────────────────────────────────────────────────────────────────────
+
+execution:
+
+  # ── 3.1 Permitted operations ──────────────────────────────────────
+
+  permitted:
+    files:
+      - "src/repository/*.py"
+      - "tests/test_*.py"
+    patterns:
+      - "Must use existing Repository base class"
+      - "Must follow existing project patterns"
+
+  # ── 3.2 Forbidden operations ──────────────────────────────────────
+
+  forbidden:
+    files:
+      - "src/db/*"        # Do not touch database layer
+      - "ssot/*"          # Do not modify source of truth
+    patterns:
+      - "No global variables"
+      - "No direct DB access"
+      - "No cross-module imports"
+      - "No dependency outside stdlib (unless explicitly allowed)"
+
+  # ── 3.3 Dependencies ──────────────────────────────────────────────
+
+  dependencies:
+    files_read:  # Files the model MAY read for context
+      - "src/repository/base.py"
+      - "src/models/memory.py"
+    files_written:  # Files the model MUST write to
+      - "src/repository/memory_repository.py"
+      - "tests/test_memory_repository.py"
+
+  # ── 3.4 Input/Output boundary ─────────────────────────────────────
+  #
+  # The model receives EXACTLY this. Nothing more.
+  # The model produces EXACTLY these. Nothing less.
+
+  io_boundary:
+    input_source: contract.input_schema
+    output_target: contract.output_schema
+    side_effects:
+      - "Writes to files listed in dependencies.files_written"
+      - "No network calls"
+      - "No database mutations outside permitted files"
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 4: LAYER-ZERO (Goldfish Brain Context)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# GPT free / no-login sessions have NO memory of the project.
+# Layer-Zero is the minimum context they need to execute correctly.
+# Every field here is self-contained — requires zero prior knowledge.
+
+layer_zero:
+
+  project_context:
+    what_is_this: "One-sentence explanation of what this project does"
+    tech_stack: "Python 3.11, SQLite, no frameworks"
+    architecture_pattern: "Repository pattern — all DB access through repositories"
+    state_philosophy: "Stateless services. Errors returned, not thrown."
+    key_files_to_read: []
+
+  chain_of_thought_prefix: |
+    1. Read input_schema. Understand what data you receive.
+    2. Read invariants. These are the business rules you CANNOT violate.
+    3. Execute the task following rules exactly.
+    4. Verify output matches output_schema exactly.
+    5. Run invariants against output. All must pass.
+    6. If any rule violated → self-repair, don't submit broken output.
+
+  reasoning_constraints:
+    max_reasoning_tokens: 500
+    no_external_knowledge: true
+    no_assumptions_about_project: >
+      Do not infer project structure. Only use what's defined in this pack.
+
+  anti_patterns:
+    - "Creating new database layer"
+    - "Importing non-standard-library modules"
+    - "Using global state"
+    - "Catching generic Exception"
+    - "Assuming project structure not shown in dependencies.files_read"
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 5: SELF-VERIFICATION
+# ──────────────────────────────────────────────────────────────────────────
+#
+# The pack validates ITSELF before returning output.
+# Verification is NOT optional — it's part of execution.
+
+self_verify:
+
+  # ── 5.1 Static checks (run before output is submitted) ────────────
+
+  static_checks:
+    - id: SV-001
+      name: "schema_compliance"
+      command: "python -c \"validate_schema(output, output_schema)\""
+      auto_fix: true
+
+    - id: SV-002
+      name: "forbidden_patterns"
+      command: "grep -n \"global\\|subprocess\\|os.system\\|eval\\|exec\" output/*.py && exit 1 || exit 0"
+      auto_fix: false
+
+    - id: SV-003
+      name: "file_boundary"
+      command: "check all written files are in execution.permitted.files"
+      auto_fix: false
+
+  auto_pass:
+    - all critical invariants pass
+    - output_schema matches interface_signature
+    - no forbidden patterns detected
+    - all permitted files written
+
+  auto_reject:
+    - any critical invariant fails
+    - new file created outside permitted paths
+    - contract (input_schema/output_schema) modified
+    - banned dependency imported
+
+  auto_repair:
+    max_attempts: 3
+    strategy: "tighten instructions based on failure reason"
+    fallback: "escalate to human"
+
+# ── 5.2 Verification command (runs outside the model) ───────────────
+
+verification_command:
+  type: pytest | script | manual
+  path: "pytest tests/test_memory_repository.py -v"
+  expected_exit_code: 0
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 6: EVIDENCE CHAIN
+# ──────────────────────────────────────────────────────────────────────────
+
+evidence:
+
+  provenance:
+    source_spec: "ssot/02-domain.yaml"
+    derived_from: "PRO-002-knowledge-schema.yaml"
+    generation_command: "python scripts/build_context_pack.py --task MEM-001"
+
+  execution_trail:
+    - attempt: 1
+      executor: "gpt-4o-free | deepseek | claude"
+      session_id: "uuid-of-execution-session"
+      output_signature: "sha256 of structural signature"
+      verdict:
+        self_verify: PASS | FAIL
+        success_criteria:
+          - criteria_1: PASS
+          - criteria_2: PASS
+        acceptance_criteria:
+          - criteria_1: PENDING
+      artifacts:
+        - "src/repository/memory_repository.py"
+        - "tests/test_memory_repository.py"
+      decision_log:
+        - decision_id: DEC-001
+          question: "Should we use Repository base class or write from scratch?"
+          alternatives: ["extend base", "write fresh"]
+          selected: "extend base"
+          rationale: "Project pattern: all repositories extend BaseRepository"
+    - attempt: 2
+      executor: "gpt-4o-free"
+      verdict:
+        self_verify: PASS
+        success_criteria:
+          - criteria_1: PASS
+          - criteria_2: PASS
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 7: DECISION PROVENANCE
+# ──────────────────────────────────────────────────────────────────────────
+
+decisions:
+  - decision_id: DEC-NNN
+    phase: "design | implementation | testing | review"
+    timestamp: 2026-06-17T00:00:00Z
+    context: "Brief reason this decision needed to be made"
+    question: "What was the architectural question?"
+    alternatives:
+      - option_1:
+          description: "What option 1 is"
+          pro: []
+          con: []
+      - option_2:
+          description: "What option 2 is"
+          pro: []
+          con: []
+    selected: option_1
+    rationale: "Why this was chosen — especially constraints that forced this decision"
+    impact:
+      affects_modules: []
+      affects_contracts: []
+      notes: ""
+    decided_by: "claude | human | deepseek"
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 8: FAILURE MODES
+# ──────────────────────────────────────────────────────────────────────────
+
+failure_modes:
+
+  known_patterns:
+
+    - pattern_id: FM-001
+      name: "interface_mismatch"
+      description: "Output does not match output_schema exactly"
+      probability: high
+      recovery:
+        type: auto_repair
+        action: "Regenerate with stricter schema instructions"
+        max_retries: 3
+      requires_claude: false
+
+    - pattern_id: FM-002
+      name: "logic_violation"
+      description: "Output passes schema but fails business invariants"
+      probability: medium
+      recovery:
+        type: auto_repair
+        action: "Resubmit with invariant failures as additional constraints"
+        max_retries: 2
+      requires_claude: false
+
+    - pattern_id: FM-003
+      name: "architecture_drift"
+      description: "Model creates code that violates project architecture"
+      probability: low
+      recovery:
+        type: escalate
+        action: "Flag for architecture review"
+      requires_claude: true
+
+    - pattern_id: FM-004
+      name: "ambiguous_requirement"
+      description: "Multiple interpretations of the same contract"
+      probability: low
+      recovery:
+        type: escalate
+        action: "Lock requirement via explicit constraint in contract"
+      requires_claude: true
+
+    - pattern_id: FM-005
+      name: "dependency_conflict"
+      description: "Output introduces dependency that conflicts with existing"
+      probability: medium
+      recovery:
+        type: reject
+        action: "Block merge, flag for resolution"
+      requires_claude: true
+
+  default_recovery:
+    max_retries: 3
+    backoff: "exponential (1, 3, 9 retries)"
+    escalation_after: "3 consecutive failures on same pack"
+    escalation_message: "requires_claude: true — pattern exceeded auto-repair capacity"
+
+  circuit_breaker:
+    max_failures: 5
+    window_minutes: 60
+    action: "pause chain, notify human"
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 9: ATTENTION DIRECTIVES
+# ──────────────────────────────────────────────────────────────────────────
+#
+# LLMs have limited attention. Tell them where to focus.
+# Without this, models evenly distribute tokens across all instructions.
+
+attention:
+
+  priority_directive: >
+    CRITICAL: Match output_schema exactly. Type mismatches are the #1 failure.
+    IMPORTANT: Follow execution.forbidden rules — violations cause auto-reject.
+    NICE_TO_HAVE: Docstrings and comments.
+
+  ignore:
+    - "Performance optimization (Phase 6 concern)"
+    - "Error message copywriting"
+    - "Formatting style beyond PEP8"
+    - "Edge cases beyond what invariants define"
+
+  token_allocation:
+    contract_matching: 40
+    implementation: 35
+    self_verification: 15
+    acceptance: 10
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 10: CLOSED-LOOP VERIFICATION
+# ──────────────────────────────────────────────────────────────────────────
+#
+# The verification pipeline that makes this a protocol, not a prompt.
+# Every output passes through this pipeline before being accepted.
+
+closed_loop:
+
+  pipeline:
+    - step: 1
+      name: "schema_validation"
+      description: "Check output shape matches output_schema"
+      validator: schema_validator
+      on_fail: "auto_repair — regenerate with explicit schema instruction"
+      pass_condition: "output structure matches output_schema exactly"
+
+    - step: 2
+      name: "invariant_validation"
+      description: "Run all invariants against output"
+      validator: invariant_runner
+      on_fail: "auto_repair — resubmit with invariant failures as constraints"
+      pass_condition: "all critical invariants pass"
+
+    - step: 3
+      name: "rule_enforcement"
+      description: "Check forbidden patterns and execution boundaries"
+      validator: rule_enforcer
+      on_fail: "auto_reject — no repair for architectural violations"
+      pass_condition: "zero forbidden patterns detected"
+
+    - step: 4
+      name: "interface_handshake"
+      description: "Verify output matches interface_signature"
+      validator: signature_matcher
+      on_fail: "reject — interface drift detected"
+      pass_condition: "interface_signature matches"
+
+    - step: 5
+      name: "test_execution"
+      description: "Run verification tests if defined"
+      validator: test_runner
+      on_fail: "repair — fix test failures"
+      pass_condition: "all tests pass"
+      skip_if: "no verification_command defined"
+
+    - step: 6
+      name: "evidence_append"
+      description: "Append execution trail to evidence chain"
+      validator: chain_updater
+      on_fail: "log warning (non-critical)"
+      pass_condition: "evidence chain updated"
+
+  escalation_conditions:
+    - "more than 3 auto-repair cycles on same step"
+    - "any step 3 (rule_enforcement) auto_reject"
+    - "interface_signature mismatch after 2 repair attempts"
+    - "requires_claude flag set by any failure mode"
+
+  auto_merge_conditions:
+    - "all 6 pipeline steps pass"
+    - "no requires_claude flags set"
+    - "evidence chain non-broken"
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 11: COST GOVERNOR
+# ──────────────────────────────────────────────────────────────────────────
+
+cost_governor:
+
+  model_routing:
+    recommended: "gpt-4o-free | gpt-api | deepseek | claude"
+    fallback_chain:
+      - "gpt-4o-free"
+      - "deepseek (API)"
+      - "gpt-4o-mini (API)"
+      - "claude-sonnet (API)"
+
+  budget:
+    max_input_tokens: 2000
+    max_output_tokens: 3000
+    max_total_tokens: 5000
+    overflow_strategy: "split_to_files"
+    estimated_cost:
+      gpt_free: 0
+      deepseek: "$0.003"
+      gpt_api: "$0.01"
+      claude: "$0.03-0.05"
+
+  # ── Policy change readiness ─────────────────────────────────────
+  # GPT free is the default execution tier — $0, unlimited, reliable.
+  # But if OpenAI changes free tier policy (rate limits, model
+  # downgrade, access restrictions), the protocol shifts to:
+  #
+  #   fallback_chain.gpt-4o-mini → ~$0.01/task → ~$0.22 for 22 tasks
+  #
+  # At that cost, the protocol still runs profitably. The only
+  # difference: GPT-4o-mini API has longer context and is more
+  # reliable than free tier — so pack budgets can expand slightly.
+  # The contract format does not change. The validator does not change.
+  # Only the model label changes.
+  policy_readiness:
+    free_tier_dependency: optional
+    free_tier_failure_action: "shift fallback_chain by one slot"
+    cost_if_free_dies:
+      per_task: "$0.01 (gpt-4o-mini)"
+      per_22_tasks: "$0.22"
+    contract_impact: none
+    validator_impact: none
+
+# ──────────────────────────────────────────────────────────────────────────
+# LAYER 12: PHASE CONTEXT (Temporal Awareness)
+# ──────────────────────────────────────────────────────────────────────────
+
+phase_context:
+
+  current_phase: "design | implementation | testing | review | optimization"
+
+  phase_contract:
+    design:
+      output_artifact: "yaml_schema"
+      expected_quality: "all entities + relationships defined"
+    implementation:
+      output_artifact: "code"
+      expected_quality: "interface match 100%"
+    testing:
+      output_artifact: "tests"
+      expected_quality: "core paths covered"
+    review:
+      output_artifact: "verdict"
+      expected_quality: "all criteria verified"
+
+  phase_boundary:
+    entry_criteria:
+      - "previous phase output accepted"
+      - "evidence chain for previous phase complete"
+    exit_criteria:
+      - "this phase output accepted"
+      - "all success criteria pass"
+      - "evidence chain updated"

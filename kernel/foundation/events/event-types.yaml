@@ -1,0 +1,72 @@
+# Event Types Registry
+# Core spec — defines all valid event types
+
+managed-by: knowledge-kernel
+managed-version: 1.0.0
+
+event-types:
+
+  # --- Correction lifecycle ---
+  - id: correction.created
+    description: A new correction proposal has been submitted
+    source: any user or AI agent
+
+  - id: correction.approved
+    description: Domain owner approved the correction
+    source: domain owner
+
+  - id: correction.rejected
+    description: Domain owner rejected the correction
+    source: domain owner
+
+  - id: correction.superseded
+    description: Correction replaced by a newer one
+    source: system
+
+  # --- SSOT lifecycle ---
+  - id: ssot.updated
+    description: SSOT content has been modified
+    source: ACP execution engine
+
+  - id: ssot.superseded
+    description: SSOT has been replaced
+    source: domain owner
+
+  - id: ssot.deprecated
+    description: SSOT marked as deprecated
+    source: domain owner
+
+  # --- Graph lifecycle ---
+  - id: graph.validated
+    description: Graph validation completed
+    source: validator service
+
+  - id: orphan.detected
+    description: Orphan file identified
+    source: validator service
+
+  - id: broken_link.detected
+    description: Broken link identified
+    source: validator service
+
+  # --- Governance lifecycle ---
+  - id: domain.owner_changed
+    description: Domain ownership reassigned
+    source: system
+
+  - id: domain.unassigned
+    description: Domain has no owner → BLOCKED
+    source: system
+
+  - id: escalation.created
+    description: Domain owner conflict → escalated to Arbiter
+    source: validator
+
+  # --- Health lifecycle ---
+  - id: health.degraded
+    description: System health below threshold
+    source: auditor service
+
+  - id: health.critical
+    description: System health critical
+    source: auditor service

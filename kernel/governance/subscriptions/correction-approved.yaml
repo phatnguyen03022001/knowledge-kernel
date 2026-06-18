@@ -1,0 +1,6 @@
+# Subscription: correction.approved
+# When a correction is approved, execute update-ssot pack
+
+event: correction.approved
+handlers:
+  - pack: update-ssot

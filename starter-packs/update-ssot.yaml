@@ -1,0 +1,49 @@
+# ACP Pack: Update SSOT
+# Triggered when a correction event is approved
+# Default pack — copy and customize per project
+
+id: update-ssot
+version: 1.0
+
+trigger:
+  type: event
+  event: correction.approved
+
+context:
+  requires:
+    - ssot
+    - corrections
+
+inputs:
+  - correction_id
+  - ssot_path
+
+permissions:
+  requires:
+    domain_owner: true
+    system_guardian: true
+
+validation:
+  requires:
+    - graph_consistent
+    - ownership_consistent
+
+execution:
+  steps:
+    - validate_correction
+    - load_ssot
+    - apply_patch
+    - update_frontmatter
+    - mark_correction_applied
+    - write_ssot
+    - emit_event: ssot.updated
+
+outputs:
+  - ssot_updated
+  - correction_closed
+
+rollback:
+  enabled: true
+
+audit:
+  log_level: full

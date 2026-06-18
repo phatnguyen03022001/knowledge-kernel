@@ -1,0 +1,26 @@
+# Validator Rules
+# Core spec — defines automatic validation checks
+
+managed-by: knowledge-kernel
+managed-version: 1.0.0
+
+validators:
+
+  graph_validator:
+    checks:
+      - orphan_detection
+      - broken_links
+      - incoming_link_count
+    orphan_rule: "incoming_links = 0 AND not in root index"
+
+  schema_validator:
+    checks:
+      - frontmatter_present
+      - frontmatter_fields: [status, last-reviewed, review-by, sources, links]
+      - concept_registered
+
+  ownership_validator:
+    checks:
+      - domain_owner_exists
+      - concept_owner_match
+      - no_duplicate_ownership

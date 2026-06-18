@@ -1,0 +1,22 @@
+# Escalation Policy
+# Core spec — defines when Arbiter is invoked
+
+managed-by: knowledge-kernel
+managed-version: 1.0.0
+
+escalation_rules:
+
+  - trigger: domain_ownership_conflict
+    description: Primary and secondary domain owners disagree
+    action: escalate_to_arbiter
+    arbiter_timeout: 48h
+
+  - trigger: concept_overlap_unresolved
+    description: Two SSOTs claim the same concept
+    action: escalate_to_arbiter
+    arbiter_timeout: 72h
+
+  - trigger: domain_missing_owner
+    description: Domain has no assigned owner > 7 days
+    action: system_block
+    resolution: require_seed_intervention

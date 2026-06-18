@@ -1,0 +1,16 @@
+id: 8ddcaa8b-c894-4e20-963f-b667e34de4f8
+type: graph.validated
+timestamp: '2026-06-18T06:32:11.280563Z'
+source:
+  component: acp_runner
+  entity:
+    type: pack
+    id: unknown
+payload:
+  pack_id: validate-graph
+  ssot_path: runtime/test-ssot.yaml
+  correction_id: TEST-CORR-001
+metadata:
+  correlation_id: 1ab0e539-43c0-4eef-98b3-719a69db3506
+  causation_id: null
+version: 1

@@ -1,0 +1,37 @@
+# Scenario: Update SSOT Flow
+# Full end-to-end chain: run_pack → event → event_bus → next packs
+
+id: update-ssot-flow
+
+steps:
+
+  - run_pack:
+      pack: starter-packs/update-ssot.yaml
+
+  - run_event_bus: {}
+
+expect:
+
+  status:
+    - success
+
+  events:
+    - ssot.updated
+
+  audit_logs:
+    - update-ssot
+    - validate-graph
+
+  packs_executed:
+    - update-ssot
+    - validate-graph
+
+  processed_count: 1
+
+  audit_contents:
+    - pack: update-ssot
+      contains:
+        - success
+    - pack: validate-graph
+      contains:
+        - success
