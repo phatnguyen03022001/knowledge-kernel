@@ -731,8 +731,9 @@ Validator ──→ Projection ──→ Health Dashboard
 
 **Source:** Claude + external architecture review (2026-06-18).
 
-**v1.1 refinement (2026-06-18):** Second architecture review identified 3 spec issues:
-1. "No orphans" vs "orphan rate < 10%" — semantic conflict. Fixed by renaming: S-INV-001 = "no-broken-references" (hard invariant, link → missing file) vs GH-MET-001 = "unreferenced-node-threshold" (health metric, file → no incoming links).
-2. Ownership model undefined. Fixed: chốt Domain-Authority model (primary owner = single writer for definition correctness, secondary = consultation only, Arbiter resolves disputes).
-3. Missing semantic boundary. Fixed: added 3-layer separation (deterministic / interpreted / external) to both invariants and contract files.
-4. Missing chaos test: added CHAOS-006 (partial-validity — 90% valid + 10% broken references, the most common real-world failure mode).
+**v1.2 refinement (2026-06-18):** Third review identified 3 runtime conflicts that spec would hit:
+1. Ownership conflated semantic authority (SA) with write authority (WA). Fixed: SA = primary domain owner decides "what concept means." WA = anyone can propose corrections. Arbiter resolves SA disputes but does NOT hold SA. Arbiter can temporarily route WA if domain owner unresponsive > 48h.
+2. "Correction links to SSOT" ambiguous — state or event? Fixed: SSOT defined as 3 representations (Concept = logical path, State = file on disk, Event = immutable record). Correction.affects → SSOT Concept. Correction application → updates State. Correction record → new Event (append-only).
+3. GR-POL-001 convergence undefined — mini-consensus algorithm without rules. Fixed: concrete convergence rule — timeout (48h) + max attempts (3) + mandatory Arbiter action. Arbiter cannot "do nothing." If Arbiter doesn't act → System Guardian escalates to Seed/Council.
+
+**Source:** Claude + second external architecture review (2026-06-18).

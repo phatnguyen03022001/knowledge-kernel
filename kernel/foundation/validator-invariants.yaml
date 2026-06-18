@@ -29,31 +29,63 @@ status: committed
 # ============================================================================
 
 # ============================================================================
-# OWNERSHIP MODEL (defines G-INV-002 semantics)
+# SSOT DEFINITION (resolves G-INV-003 semantics)
 # ============================================================================
-# Model: Domain-Authority Ownership.
+# In the event-sourced model, "SSOT" has three representations:
 #
-#   primary-domain owner = single writer for definition correctness.
-#     They decide WHAT the concept means. They are the only party
-#     that can approve a correction changing the concept's definition.
+#   SSOT Concept   — the logical entity declared in concept-registry.yaml.
+#                    Identified by concept path (e.g. "knowledge-model").
+#                    This is what correction.affects references.
 #
-#   secondary-domain owner = consultation only, no veto.
-#     They can propose corrections and escalate disagreements,
-#     but cannot block a primary owner's decision.
+#   SSOT State     — the current materialized view on disk
+#                    (e.g. knowledge/ssot/03-knowledge-model.md).
+#                    This is what ACP packs read and write.
+#                    Derived from: Event Store → Projection → State.
 #
-#   Conflict resolution (when primary and secondary disagree):
-#     Primary wins by default → Secondary escalates to Arbiter →
-#     Arbiter decides with written rationale → Decision is final.
+#   SSOT Event     — an immutable record in runtime/event-store/.
+#                    This is the canonical source of truth.
+#                    State is rebuilt from events; events are never edited.
 #
-#   Ownership is NOT:
-#     - Last-write-wins (no race conditions)
-#     - Event-sourced claims (ownership doesn't change via events)
-#     - File-system based (ownership is in registry, not filesystem)
+# When G-INV-003 says "correction must link to SSOT":
+#   → correction.affects references the SSOT CONCEPT (logical path).
+#   → The correction event is appended to the event store.
+#   → The SSOT state file is updated by ACP (apply_patch step).
+#   → The original event that created the pre-correction state
+#     remains immutable — the correction is a NEW event.
 #
-#   Ownership IS:
-#     - Declared in concept-registry.yaml (single source of truth)
-#     - Assigned by Seed Owner (Phase 0) or Council (Phase 2+)
-#     - Immutable unless changed via L3 correction + Arbiter approval
+# This is the Git commit model: you don't edit a commit;
+# you create a new commit. The old commit stays forever.
+# ============================================================================
+
+# ============================================================================
+# OWNERSHIP MODEL — Two Distinct Authorities
+# ============================================================================
+# "Owner" in this system means TWO separate things. Conflating them
+# is the #1 source of runtime conflict. They are intentionally split:
+#
+#   Semantic Authority (SA)
+#     = Decides WHAT a concept MEANS.
+#     = Held by: primary domain owner.
+#     = Scope: definition correctness, concept boundaries.
+#     = Exercised via: approving L2 corrections that change meaning.
+#     = Transferable: only via L3 correction + Arbiter approval.
+#     = Arbiter does NOT have SA. Arbiter resolves disputes ABOUT SA.
+#
+#   Write Authority (WA)
+#     = Decides WHO can PROPOSE changes.
+#     = Held by: anyone (correction proposal is open).
+#     = Constrained by: domain owner approval (SA holder).
+#     = Exercised via: creating a correction event → domain owner approves/rejects.
+#     = Arbiter CAN temporarily grant WA if domain owner is unresponsive
+#       (stale correction > 48h → Arbiter may reassign or auto-close).
+#
+#   Key distinction:
+#     SA = "what is true"       (slow-changing, high ceremony)
+#     WA = "who can act"        (fast-changing, low ceremony)
+#     Arbiter = resolves SA disputes, can temporarily route WA
+#
+#   G-INV-002 enforces: one SA holder per concept (in registry).
+#   It does NOT constrain WA (anyone can propose corrections).
 # ============================================================================
 
 # ============================================================================
@@ -272,19 +304,39 @@ governance_rules:
   - id: GR-POL-001
     name: "correction-convergence"
     description: >
-      Every correction MUST eventually reach a terminal state:
-      applied, rejected, or superseded. A correction that stays
-      in 'open' state beyond the cycle window (48h) triggers
-      escalation. Validator reports the age; Arbiter resolves.
+      Every correction MUST eventually reach a terminal state.
+      Convergence is defined concretely, not philosophically:
+      (a) Terminal states: applied, rejected, superseded.
+      (b) Non-terminal state: open — only valid within 48h cycle window.
+      (c) After 48h in 'open': Arbiter MUST act (auto-close, reassign,
+          or extend with written rationale). Arbiter cannot leave 'open'
+          indefinitely — this is a hard governance rule, not a suggestion.
+      (d) Max correction attempts: 3. After 3rd failure, status MUST
+          become 'rejected' or 'superseded' — cannot retry forever.
+      This prevents the "infinite correction loop" failure mode.
     severity: warning
     layer: 3
     resolved_by: arbiter
+    convergence_rule:
+      type: timeout_with_terminal_state
+      max_open_duration: 48h
+      max_attempts: 3
+      terminal_states: [applied, rejected, superseded]
+      arbiter_obligation: >
+        Arbiter MUST resolve any correction still 'open' after 48h.
+        Arbiter options: auto-close as 'rejected', reassign to another
+        domain owner, or extend window with written rationale.
+        'Do nothing' is NOT a valid Arbiter response.
     expression: >
-      correction.status in [open, applied, rejected, superseded]
-      AND correction.age_since_open < 48h OR correction.status != 'open'
+      correction.status in [applied, rejected, superseded]
+      OR (correction.status == 'open'
+          AND correction.age_since_open < 48h
+          AND correction.attempts < 3)
     violation_response: >
-      Validator: WARN + flag for escalation.
-      Arbiter: decide whether to auto-close, reassign, or extend window.
+      Validator: WARN + flag for mandatory Arbiter review.
+      Arbiter: MUST resolve within 24h of flag (72h total from open).
+      If Arbiter does not act → System Guardian escalates to Seed Owner
+      (Phase 0-1) or Council (Phase 2+).
 
 # ============================================================================
 # SEMANTIC BOUNDARY

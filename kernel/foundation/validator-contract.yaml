@@ -29,6 +29,7 @@ semantic_boundary:
       - "Event content hash verification (immutability proof)"
       - "Circular dependency detection (graph topology)"
       - "Duplicate concept path detection (string equality)"
+      - "Correction attempts < max_retries (countable, not interpretable)"
 
   interpreted:
     description: >
@@ -44,10 +45,33 @@ semantic_boundary:
       These are OUTSIDE Validator's scope entirely.
       Validator may detect preconditions but resolution is elsewhere.
     handled_by:
-      - "Ownership dispute → Arbiter"
-      - "Correction approval/rejection → Domain Owner"
+      - "Ownership dispute (SA conflict) → Arbiter"
+      - "Correction approval/rejection (WA gate) → Domain Owner"
       - "Domain assignment/reassignment → System Guardian"
       - "Stagnation response → Auditor → Health Dashboard"
+      - "Write Authority routing during stale ownership → Arbiter (temporary)"
+
+  # ── Key definitions that prevent Validator from "guessing" ─────────
+
+  ownership:
+    semantic_authority:
+      holder: primary domain owner
+      scope: "what a concept MEANS (definition correctness)"
+      transfer: L3 correction + Arbiter approval
+      arbiter_role: "resolves SA disputes, does NOT hold SA"
+    write_authority:
+      holder: anyone (correction proposal is open)
+      gate: domain owner approval
+      arbiter_role: "can temporarily route WA if domain owner unresponsive > 48h"
+
+  ssot_in_event_model:
+    concept: "logical entity in concept-registry (what correction.affects references)"
+    state: "materialized file on disk (what ACP reads/writes, derived from events)"
+    event: "immutable record in event-store (canonical source of truth)"
+    rule: >
+      correction.affects → SSOT CONCEPT path.
+      correction application → updates SSOT STATE (via ACP).
+      correction record → new SSOT EVENT (append-only, never mutates existing).
 
 # ============================================================================
 # INPUT CONTRACT
