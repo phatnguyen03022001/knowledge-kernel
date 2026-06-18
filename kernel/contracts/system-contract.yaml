@@ -307,3 +307,92 @@ version_history:
       - "Event schema lock with evolution rules"
       - "4 cross-layer consistency tests"
       - "Semantic boundary enforcement rule"
+  - version: "2.1.0"
+    date: "2026-06-18"
+    changes:
+      - "Added M3 Auditor + M4 Arbiter to layer boundary contracts"
+      - "Added 3 known failure modes (policy drift, routing explosion, coupling creep)"
+      - "Added future-risk detection rules"
+
+# ============================================================================
+# 8. KNOWN FAILURE MODES (anti-patterns this system is vulnerable to)
+# ============================================================================
+# These are NOT current problems. They are the most likely ways this
+# architecture will break over time. Documented so future maintainers
+# can recognize them before they cause damage.
+
+known_failure_modes:
+  - id: FM-ARCH-001
+    name: "policy-drift"
+    description: >
+      As M3 policy files accumulate complexity, the Auditor gradually
+      becomes a hidden reasoning engine. New policies add "context-aware"
+      rules that require understanding system state, not just matching
+      diagnostic categories.
+    early_warning_signs:
+      - "Policy files grow beyond 20 rules each"
+      - "Policies reference each other (cross-policy dependencies)"
+      - "Policies contain conditional logic beyond threshold comparison"
+      - "Policy authors ask 'can Auditor infer X from diagnostics?'"
+    prevention: >
+      Every new policy MUST be expressible as: category + threshold + action.
+      If a policy requires understanding relationships between categories,
+      it belongs in a NEW invariant (M1), not a new policy (M3).
+
+  - id: FM-ARCH-002
+    name: "routing-explosion"
+    description: >
+      As M4 action types multiply, the Arbiter becomes a mini-orchestrator.
+      New actions require new routing rules → rules interact → emergent
+      behavior → Arbiter is effectively governing the system.
+    early_warning_signs:
+      - "M4 action types exceed 5"
+      - "M4 rules contain cross-action references"
+      - "M4 emit() is called with side effects beyond writing resolution events"
+      - "Someone asks 'can Arbiter trigger remediation automatically?'"
+    prevention: >
+      M4 has exactly 4 actions: NONE, MONITOR, BLOCK, ESCALATE.
+      Adding a 5th action requires an ADR + version bump of this contract.
+      Actions MUST be pure routing — no orchestration logic.
+
+  - id: FM-ARCH-003
+    name: "coupling-creep"
+    description: >
+      Over time, features added to one layer create implicit dependencies
+      on another layer's internal format. M3 starts depending on M2.1's
+      internal fingerprint format. M4 starts depending on M3's risk_score
+      calculation details. The strict isolation erodes silently.
+    early_warning_signs:
+      - "Import statements appear across forbidden layer boundaries"
+      - "Layer output format changes without contract version bump"
+      - "Layer tests start importing downstream modules for setup"
+      - "Someone says 'it's simpler to just call Validator from Auditor'"
+    prevention: >
+      Layer isolation test (test_layer_isolation.py) MUST pass on every commit.
+      Any cross-layer format dependency MUST be declared in this contract
+      as an explicit interface, not an implementation detail.
+
+# ============================================================================
+# 9. FUTURE RISK DETECTION (operational)
+# ============================================================================
+
+future_risks:
+  scaling:
+    - risk: "Policy count growth → M3 becomes reasoning engine"
+      detection: "Monitor len(governance/policies/*.yaml) — alert if > 5 files"
+    - risk: "Category count creep → ontology inflation"
+      detection: "test_ontology_freeze.py — must always assert len==12"
+    - risk: "Trace store size → replay performance degradation"
+      detection: "Monitor runtime/traces/ file count — snapshot/archive policy needed at 1000+ traces"
+
+  adversarial:
+    - risk: "Malformed trace with correct hash but wrong content"
+      detection: "Full pipeline replay test — divergent outputs trigger alert"
+    - risk: "Conflicting diagnostics (same fingerprint, different category)"
+      detection: "test_ontology_freeze.py B3 — invariant→category 1:1 mapping"
+
+  operational:
+    - risk: "Pipeline latency grows with graph size"
+      detection: "Performance bounds in validator-contract.yaml — 50-node < 2s"
+    - risk: "Resolution event store grows unbounded"
+      detection: "Monitor runtime/resolutions/ — archive policy needed"
