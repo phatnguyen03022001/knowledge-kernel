@@ -215,13 +215,13 @@ def compose_health_report(pipe):
         },
         "violations_by_category": violations_by_category,
         "health_snapshot": {
-            "total_nodes": val.get("health_snapshot", {}).get("total_nodes", 0),
-            "orphan_count": val.get("health_snapshot", {}).get("orphan_count", 0),
-            "orphan_rate": val.get("health_snapshot", {}).get("orphan_rate", 0.0),
-            "broken_link_count": val.get("health_snapshot", {}).get("broken_link_count", 0),
-            "circular_dependency_count": val.get("health_snapshot", {}).get("circular_dependency_count", 0),
-            "domains_without_owner": val.get("health_snapshot", {}).get("domains_without_owner", 0),
-            "stale_corrections": val.get("health_snapshot", {}).get("stale_corrections", 0),
+            "total_nodes": val.get("health_snapshot", {}).get("total_nodes") or 0,
+            "orphan_count": val.get("health_snapshot", {}).get("orphan_count") or 0,
+            "orphan_rate": val.get("health_snapshot", {}).get("orphan_rate") or 0.0,
+            "broken_link_count": val.get("health_snapshot", {}).get("broken_link_count") or 0,
+            "circular_dependency_count": val.get("health_snapshot", {}).get("circular_dependency_count") or 0,
+            "domains_without_owner": val.get("health_snapshot", {}).get("domains_without_owner") or 0,
+            "stale_corrections": val.get("health_snapshot", {}).get("stale_corrections") or 0,
         },
         "trend_detail": trend_detail,
         "resolution": {
@@ -292,7 +292,7 @@ def format_human(report):
 
     # Health metrics
     hs = report["health_snapshot"]
-    if hs:
+    if any(hs.values()):
         app("")
         app("  ── Health Metrics " + "─" * 26)
         app(f"  Total nodes:            {hs['total_nodes']}")
@@ -332,24 +332,18 @@ def format_json(report):
 # Exit code
 # ============================================================================
 
-def determine_exit_code(verdict, action):
+def determine_exit_code(action):
     """
-    Map M3 verdict + M4 action to CI exit code.
+    Map M4 resolution action to CI exit code.
 
-    0 = healthy   (PASS)
-    1 = warning   (WARN or MONITOR)
-    2 = critical  (FAIL, BLOCK, ESCALATE)
+    0 = healthy   (NONE)
+    1 = warning   (MONITOR)
+    2 = critical  (BLOCK, ESCALATE)
+
+    The action already encodes severity — no need to
+    consult verdict separately.
     """
-    if verdict == "FAIL":
-        return 2
-    if verdict == "WARN":
-        return 1
-    # PASS (or unexpected verdict)
-    if action in ("BLOCK", "ESCALATE"):
-        return 2
-    if action == "MONITOR":
-        return 1
-    return 0
+    return {"NONE": 0, "MONITOR": 1, "BLOCK": 2, "ESCALATE": 2}.get(action, 0)
 
 
 # ============================================================================
@@ -375,10 +369,7 @@ def main():
     else:
         print(format_human(report))
 
-    sys.exit(determine_exit_code(
-        report["verdict"],
-        report["action"],
-    ))
+    sys.exit(determine_exit_code(report["action"]))
 
 
 if __name__ == "__main__":

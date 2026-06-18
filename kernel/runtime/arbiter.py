@@ -217,6 +217,10 @@ class Arbiter:
 
         Returns: event dict (with generated id)
         """
+        # NOTE: Import from acp_runner is a layering compromise.
+        # emit_event() should live in kernel/foundation/events/ so both
+        # kernel modules and top-level scripts can import it cleanly.
+        # See: code-review finding #7, 2026-06-18.
         from acp_runner import emit_event
 
         return emit_event(

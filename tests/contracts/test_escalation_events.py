@@ -130,13 +130,11 @@ def test_arbiter_emit_to_event_store():
     assert "metadata" in event, "Event missing 'metadata'"
     assert event.get("version") == 1, "Event version should be 1"
 
-    # Verify event was written to disk (filenames use sequence, not UUID)
+    # Verify event was written to disk (search all date subdirectories
+    # to avoid midnight-UTC race between utcnow and emit_event timestamp)
     from acp_runner import EVENT_STORE_DIR
-    import datetime as _dt
-    today = _dt.datetime.utcnow()
-    day_dir = EVENT_STORE_DIR / f"{today.year:04d}" / f"{today.month:02d}" / f"{today.day:02d}"
-    event_files = sorted(day_dir.glob("evt-*.yaml")) if day_dir.exists() else []
-    assert len(event_files) >= 1, f"No event files found in {day_dir}"
+    event_files = sorted(EVENT_STORE_DIR.rglob("evt-*.yaml")) if EVENT_STORE_DIR.exists() else []
+    assert len(event_files) >= 1, f"No event files found in {EVENT_STORE_DIR}"
 
     # The most recent file should be an escalation.resolved event
     import yaml as _yaml

@@ -986,7 +986,7 @@ def extract_audit_report_fn(context):
     context["_audit_verdict"] = payload.get("verdict", "PASS")
     context["_audit_risk_score"] = payload.get("risk_score", 0.0)
     context["_audit_policy_hits"] = payload.get("policy_hits", [])
-    context["_audit_id"] = payload.get("audit_id", event_doc.get("id", "unknown"))
+    context["_audit_id"] = payload.get("audit_id") or event_doc.get("id", "unknown")
     context["_escalation_event_id"] = event_doc.get("id")
 
     return context
@@ -1029,10 +1029,10 @@ def write_escalation_resolved_fn(context):
     arb = Arbiter()
     event = arb.emit_to_event_store(resolution)
 
-    context["_escalation_resolved_event_id"] = event.get("id")
-    context["_escalation_resolved_path"] = str(
-        Path("runtime") / "event-store" / f"evt-{event.get('id', 'unknown')}.yaml"
-    )
+    context["_escalation_resolved_event_id"] = event["id"]
+    # Path intentionally not stored — emit_event() writes to date-partitioned
+    # dirs (runtime/event-store/YYYY/MM/DD/evt-NNN.yaml). Derive from
+    # event timestamp + EVENT_STORE_DIR if needed.
 
     return context
 

@@ -72,9 +72,10 @@ def test_health_human_output():
         "Verdict:",
         "Summary",
         "Duration:",
-        "Health Metrics",
         "Trend",
     ]
+    # Health Metrics is conditionally shown (only when any(hs.values()))
+    # For the current clean system with all zeros, it is omitted.
     for section in required_sections:
         assert section in stdout, f"Missing section: '{section}'"
 
