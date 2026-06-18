@@ -1,0 +1,84 @@
+# ============================================================================
+# Chaos Test: Partial Validity — 90% valid, 10% broken references
+# ============================================================================
+# Contract: CHAOS-006 from validator-invariants.yaml
+# This is the most common real-world failure mode: incremental corruption.
+# ============================================================================
+
+scenario: chaos-partial-validity
+description: >
+  50-node graph. 45 nodes are valid. 5 nodes have broken references
+  in critical dependency paths. Validator MUST detect all 5 without
+  crashing, without false positives on the 45 valid nodes, and with
+  a complete violations list (not truncated at first error).
+
+steps:
+  - name: "generate-45-valid-nodes"
+    type: generate
+    config:
+      node_count: 45
+      link_density: 0.3
+      all_links_valid: true
+      output_dir: "tmp/chaos-partial/"
+
+  - name: "inject-5-broken-nodes"
+    type: write_files
+    files:
+      - path: "tmp/chaos-partial/broken-a.md"
+        frontmatter:
+          title: "Broken Node A"
+          links: ["knowledge/ssot/nonexistent-1.md"]
+      - path: "tmp/chaos-partial/broken-b.md"
+        frontmatter:
+          title: "Broken Node B"
+          links: ["knowledge/ssot/nonexistent-2.md"]
+      - path: "tmp/chaos-partial/broken-c.md"
+        frontmatter:
+          title: "Broken Node C"
+          links: ["knowledge/ssot/nonexistent-3.md"]
+      - path: "tmp/chaos-partial/broken-d.md"
+        frontmatter:
+          title: "Broken Node D"
+          links: ["knowledge/learning-model/nonexistent-4.md"]
+      - path: "tmp/chaos-partial/broken-e.md"
+        frontmatter:
+          title: "Broken Node E"
+          links: ["knowledge/schemas/nonexistent-5.yaml"]
+
+  - name: "run-validator"
+    type: run_pack
+    pack: validate-graph
+    target: "tmp/chaos-partial/"
+
+  - name: "verify-all-broken-detected"
+    type: check
+    assertions:
+      - "output.valid == false"
+      - "output.summary.failed_critical == 5"
+      - "output.summary.passed >= 45"
+      - "output.violations.length == 5"
+      - "output.violations[*].invariant_id all equal 'S-INV-001'"
+
+  - name: "verify-no-false-positives"
+    type: check
+    assertions:
+      - "output.summary.failed_critical == 5"
+      - "no violation on any file in the 45 valid nodes"
+
+  - name: "verify-complete-violations-list"
+    type: check
+    assertions:
+      - "each of the 5 broken nodes appears in violations"
+      - "violations list is not truncated"
+      - "validator did not exit early after first violation"
+
+  - name: "verify-validator-did-not-crash"
+    type: check
+    assertions:
+      - "exit_code == 0 (validation completed normally)"
+      - "no ERR-VAL-* error"
+      - "output.summary.duration_ms is present"
+
+  - name: "cleanup"
+    type: command
+    command: "rm -rf tmp/chaos-partial/"

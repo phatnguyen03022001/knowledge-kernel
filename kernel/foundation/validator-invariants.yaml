@@ -1,86 +1,122 @@
 # ============================================================================
-# Validator Invariants — Phase 2.0 Hardening
+# Validator Invariants — Phase 2.0 Hardening (v1.1)
 # ============================================================================
 # "Physics of the system." These are NOT configurable rules.
 # They are hard constraints that must hold for the system to be considered valid.
 #
 # Meta-rule: No implementation may introduce a new invariant
 #            that is not declared in this file.
+#
+# v1.1: Tách rõ 3 lớp logic (hard invariant / health metric / governance rule).
+#        Chốt ownership model: domain-authority (primary owner = single writer).
 # ============================================================================
 
 managed-by: knowledge-kernel
-managed-version: 2.0
+managed-version: 2.0.1
 phase: hardening
 status: committed
 
 # ============================================================================
-# TIER 1 — Structural Invariants (always enforced)
+# 3-LAYER LOGIC SEPARATION
+# ============================================================================
+# Layer 1 — Hard Invariants: binary fail/pass. REJECT on violation.
+# Layer 2 — Health Metrics:  threshold-based. WARN on violation.
+# Layer 3 — Governance Rules: policy-resolved by Arbiter, not Validator.
+#
+# Validator only enforces Layers 1 & 2.
+# Layer 3 is checked by Validator but resolved by Arbiter/Correction Loop.
+# This boundary prevents Validator from becoming a god-object.
+# ============================================================================
+
+# ============================================================================
+# OWNERSHIP MODEL (defines G-INV-002 semantics)
+# ============================================================================
+# Model: Domain-Authority Ownership.
+#
+#   primary-domain owner = single writer for definition correctness.
+#     They decide WHAT the concept means. They are the only party
+#     that can approve a correction changing the concept's definition.
+#
+#   secondary-domain owner = consultation only, no veto.
+#     They can propose corrections and escalate disagreements,
+#     but cannot block a primary owner's decision.
+#
+#   Conflict resolution (when primary and secondary disagree):
+#     Primary wins by default → Secondary escalates to Arbiter →
+#     Arbiter decides with written rationale → Decision is final.
+#
+#   Ownership is NOT:
+#     - Last-write-wins (no race conditions)
+#     - Event-sourced claims (ownership doesn't change via events)
+#     - File-system based (ownership is in registry, not filesystem)
+#
+#   Ownership IS:
+#     - Declared in concept-registry.yaml (single source of truth)
+#     - Assigned by Seed Owner (Phase 0) or Council (Phase 2+)
+#     - Immutable unless changed via L3 correction + Arbiter approval
+# ============================================================================
+
+# ============================================================================
+# TIER 1 — Hard Invariants (Layer 1: binary fail/pass, always enforced)
 # ============================================================================
 # Violating any Tier 1 invariant = system is in INVALID state.
 # Validator MUST reject. No override possible.
 
 structural:
   - id: S-INV-001
-    name: "no-orphan-nodes"
+    name: "no-broken-references"
     description: >
-      Every SSOT referenced in any `links:` field MUST exist as a file.
-      A node with zero incoming links is NOT an orphan — it may be a
-      root node or a newly created SSOT.
-      An orphan is defined strictly as: incoming_links > 0 AND file_missing.
+      Every target in `links:` and `sources:` MUST resolve to an
+      existing file. A broken reference = a link that points to a
+      file that does not exist. This is structural corruption.
+      This is NOT about orphan nodes (unreferenced files) — that is
+      a health metric (GH-MET-001), not a hard invariant.
     severity: critical
+    layer: 1
     expression: >
       for each SSOT.links:
-        linked_file MUST exist in ssot/ OR learning-model/ OR schemas/
+        target_file MUST exist
+      for each SSOT.sources:
+        source_file MUST exist
     cold_start: empty system passes vacuously
-    violation_response: reject — system state is invalid
+    violation_response: REJECT — broken reference detected
+    note: >
+      Distinct from GH-MET-001 (unreferenced nodes).
+      A freshly created SSOT with no incoming links is valid.
+      A link to a deleted SSOT is NOT valid.
 
   - id: S-INV-002
-    name: "every-link-resolves"
-    description: >
-      Every value in `links:` and `sources:` MUST reference a file
-      that exists. Dead links are structural corruption.
-    severity: critical
-    expression: >
-      for each SSOT.sources:
-        source_file MUST exist in research/ OR ssot/
-      for each SSOT.links:
-        target_file MUST exist in the knowledge tree
-    cold_start: passes vacuously (no links to resolve)
-    violation_response: reject — broken link detected
-
-  - id: S-INV-003
     name: "frontmatter-completeness"
     description: >
       Every SSOT file MUST have all required frontmatter fields:
       status, last-reviewed, review-by, sources, links, owner,
-      primary-domain, version.
-      Missing fields = unverifiable provenance.
+      primary-domain, version. Missing fields = unverifiable provenance.
     severity: critical
+    layer: 1
     expression: >
       for each SSOT:
         [status, last-reviewed, review-by, sources, links, owner,
          primary-domain, version] MUST all be present and non-null
     cold_start: applies to every SSOT from creation
-    violation_response: reject — provenance incomplete
+    violation_response: REJECT — provenance incomplete
 
-  - id: S-INV-004
+  - id: S-INV-003
     name: "schema-compliance"
     description: >
       Every YAML file in kernel/ and governance/ MUST validate against
       its declared schema. Runtime YAML files (event-store, projections)
       MUST validate against event-schema.yaml.
     severity: critical
+    layer: 1
     expression: >
       for each YAML file in [kernel/, governance/, runtime/event-store/]:
         file MUST match its declared schema
     cold_start: applies to all structured files
-    violation_response: reject — schema violation
+    violation_response: REJECT — schema violation
 
 # ============================================================================
-# TIER 2 — Governance Invariants (enforced when governance is active)
+# TIER 2 — Governance Invariants (Layer 1: enforced after Phase 0)
 # ============================================================================
-# These apply after Phase 0 bootstrap. During Phase 0, seed owner
-# may temporarily bypass via explicit waiver recorded in decision log.
 
 governance:
   - id: G-INV-001
@@ -89,56 +125,54 @@ governance:
       Every domain declared in concept-registry.yaml MUST have
       a non-null owner. Unowned domain = BLOCKED STATE.
     severity: critical
+    layer: 1
     expression: >
       for each domain in concept-registry:
         domain.owner MUST be non-null AND non-empty
     phase_0_waiver: allowed — seed owner acts as implicit owner
     phase_1_onward: enforced — unowned domain triggers assignment workflow
-    violation_response: reject + trigger domain-assignment workflow
+    violation_response: REJECT + trigger domain-assignment workflow
 
   - id: G-INV-002
     name: "one-concept-one-owner"
     description: >
       Each concept in concept-registry.yaml MUST have exactly one
-      canonical owner. Duplicate ownership = REJECT.
-      Deprecated concepts retain their entry (status = deprecated),
-      so the owner field remains valid even after deprecation.
+      canonical owner. Ownership follows the Domain-Authority model:
+      primary domain owner is the single writer for definition
+      correctness. Secondary domains consult but cannot veto.
+      Duplicate ownership claims = REJECT.
     severity: critical
+    layer: 1
+    model: domain-authority  # single-writer, not last-write-wins
     expression: >
       for each concept in concept-registry:
         count(concept.owner) == 1
       for each concept pair (A, B):
         A.path == B.path => A is B (no duplicate path entries)
-    violation_response: reject — ownership conflict
+    violation_response: REJECT — ownership conflict
+    resolution: >
+      If two parties claim same concept: first claim wins.
+      Challenger must file L3 multi-domain correction.
+      Arbiter resolves, not Validator.
 
   - id: G-INV-003
     name: "correction-must-link-to-ssot"
     description: >
       Every correction event MUST reference at least one SSOT in its
-      `affects` field. Orphan corrections are not valid.
+      `affects` field. A correction that references nothing is invalid.
+      Note: correction events ADD to the audit log. They do not
+      mutate existing events. Immutability (E-INV-001) applies to
+      committed events, not to the correction proposal flow.
     severity: critical
+    layer: 1
     expression: >
       for each correction in governance/corrections/:
         correction.affects MUST be non-empty array
         each entry in correction.affects MUST map to an existing SSOT
-    violation_response: reject — unlinked correction
-
-  - id: G-INV-004
-    name: "correction-convergence"
-    description: >
-      Every correction MUST eventually reach a terminal state:
-      applied, rejected, or superseded. A correction that stays
-      in 'open' state beyond the cycle window (48h) triggers
-      escalation, but is NOT structurally invalid — it's stalled,
-      not broken. The invariant only requires: no infinite loop.
-    severity: warning
-    expression: >
-      correction.status in [open, applied, rejected, superseded]
-      AND correction.attempts < max_retries (= 3)
-    violation_response: warn + auto-escalate on 3rd consecutive failure
+    violation_response: REJECT — unlinked correction
 
 # ============================================================================
-# TIER 3 — Event Integrity Invariants
+# TIER 3 — Event Integrity (Layer 1: always enforced)
 # ============================================================================
 
 events:
@@ -146,15 +180,18 @@ events:
     name: "event-immutability"
     description: >
       Events in runtime/event-store/ are append-only. Once written,
-      an event's content MUST NOT be modified. Correction events
-      may be superseded by a newer event, but the original is
-      never edited or deleted.
+      an event's content MUST NOT be modified. A correction does NOT
+      modify the event it corrects — it creates a NEW event that
+      supersedes the old one. The original event remains immutable.
+      This is the same model as Git commits: you don't edit a commit,
+      you create a new commit that reverts/amends.
     severity: critical
+    layer: 1
     expression: >
       for each event in event-store:
         event.content_hash == sha256(event.content_at_write_time)
       (enforced by content hash comparison on read)
-    violation_response: reject — tampered event detected
+    violation_response: REJECT — tampered event detected
 
   - id: E-INV-002
     name: "event-causality-chain"
@@ -163,84 +200,153 @@ events:
       (root event) or referencing an existing event ID.
       Broken causation chains = non-replayable history.
     severity: critical
+    layer: 1
     expression: >
       for each event:
         event.metadata.causation_id is null
         OR event.metadata.causation_id exists in event-store
-    violation_response: reject — broken causality
+    violation_response: REJECT — broken causality
 
-  - id: E-INV-003
-    name: "event-ordering-monotonic"
+# ============================================================================
+# TIER 4 — Health Metrics (Layer 2: threshold-based, WARN only)
+# ============================================================================
+# These are NOT hard invariants. They trigger warnings, not rejections.
+# They inform the Health Dashboard and Auditor, not the Validator's pass/fail.
+
+health_metrics:
+  - id: GH-MET-001
+    name: "unreferenced-node-threshold"
     description: >
-      Event timestamps MUST be monotonically non-decreasing within
-      a correlation chain. Clock skew across machines is tolerated
-      (up to 5s), but reverse causality is rejected.
+      An unreferenced node = a file in ssot/ or learning-model/ that
+      has ZERO incoming links from any other SSOT. This is NOT the
+      same as a broken reference (S-INV-001). An unreferenced node
+      is a valid file that no one links to — it may be newly created,
+      a root document, or abandoned content.
+      Above 10% threshold = potential knowledge rot. Triggers WARNING,
+      not REJECT. The Validator reports the metric; Auditor decides
+      if action is needed.
     severity: warning
-    expression: >
-      for each pair (A, B) in same correlation_id chain:
-        B.timestamp >= A.timestamp - 5s (clock skew tolerance)
-    violation_response: warn — potential clock skew
+    layer: 2
+    expression: unreferenced_count / total_nodes <= 0.10
+    violation_response: WARN + flag system as DEGRADED
+    note: >
+      Distinct from S-INV-001 (broken references).
+      S-INV-001: link → missing file = CRITICAL.
+      GH-MET-001: file → no incoming links = WARNING.
 
-# ============================================================================
-# TIER 4 — Graph Health Invariants
-# ============================================================================
-
-graph:
-  - id: GH-INV-001
+  - id: GH-MET-002
     name: "no-circular-dependency"
     description: >
       The SSOT dependency graph MUST be a DAG. Circular `links:`
       references create unresolvable dependency chains.
+      This is a graph-level check — it examines the topology,
+      not individual links.
     severity: critical
+    layer: 1
     expression: >
       for each cycle in graph(SSOT.links):
         cycle.length == 0 (no cycles)
     cold_start: passes vacuously
-    violation_response: reject — circular dependency
+    violation_response: REJECT — circular dependency
 
-  - id: GH-INV-002
-    name: "orphan-rate-threshold"
+  - id: GH-MET-003
+    name: "event-ordering-monotonic"
     description: >
-      Orphan rate = (nodes with zero incoming links AND not in root index)
-      / total nodes. Must stay below 10%. Above threshold = DEGRADED.
-      Note: this is a health metric, not a structural invariant.
-      It triggers a warning, not a reject.
+      Event timestamps SHOULD be monotonically non-decreasing within
+      a correlation chain. Clock skew across machines is tolerated
+      (up to 5s). This is a consistency signal, not a hard gate.
     severity: warning
-    expression: orphan_count / total_nodes <= 0.10
-    violation_response: warn + flag system as DEGRADED
+    layer: 2
+    expression: >
+      for each pair (A, B) in same correlation_id chain:
+        B.timestamp >= A.timestamp - 5s (clock skew tolerance)
+    violation_response: WARN — potential clock skew
+
+# ============================================================================
+# TIER 5 — Governance Rules (Layer 3: policy-resolved, not validated)
+# ============================================================================
+# These are checked by Validator but RESOLVED by Arbiter/Correction Loop.
+# Validator flags them; it does NOT reject on them.
+
+governance_rules:
+  - id: GR-POL-001
+    name: "correction-convergence"
+    description: >
+      Every correction MUST eventually reach a terminal state:
+      applied, rejected, or superseded. A correction that stays
+      in 'open' state beyond the cycle window (48h) triggers
+      escalation. Validator reports the age; Arbiter resolves.
+    severity: warning
+    layer: 3
+    resolved_by: arbiter
+    expression: >
+      correction.status in [open, applied, rejected, superseded]
+      AND correction.age_since_open < 48h OR correction.status != 'open'
+    violation_response: >
+      Validator: WARN + flag for escalation.
+      Arbiter: decide whether to auto-close, reassign, or extend window.
+
+# ============================================================================
+# SEMANTIC BOUNDARY
+# ============================================================================
+# What Validator treats as deterministic vs interpreted vs external.
+
+semantic_boundary:
+  deterministic:
+    - "File existence checks (link resolution, source resolution)"
+    - "Frontmatter field presence (required keys, non-null values)"
+    - "YAML schema validation (structural match to declared schema)"
+    - "Event content hash verification (immutability proof)"
+    - "Circular dependency detection (graph topology)"
+    - "Duplicate concept path detection (string equality)"
+
+  interpreted:
+    - "Orphan rate severity (is 11% actually bad in this context?)"
+    - "Clock skew significance (is 6s skew a real problem?)"
+    - "Correction staleness urgency (is 50h worse than 48h?)"
+    description: >
+      These are FLAGGED by Validator but JUDGED by Auditor/Arbiter.
+      Validator provides the data; it does not make the call.
+
+  external:
+    - "Ownership dispute resolution (Arbiter)"
+    - "Correction approval/rejection (Domain Owner)"
+    - "Domain assignment/reassignment (System Guardian)"
+    - "Stagnation response (Auditor → Health Dashboard)"
+    description: >
+      These are OUTSIDE Validator's scope. Validator may detect
+      preconditions (e.g., "domain has no owner") but the resolution
+      is handled by the appropriate governance actor.
 
 # ============================================================================
 # INVARIANT ENFORCEMENT RULES
 # ============================================================================
 
 enforcement:
-  # When invariants conflict, resolution order:
   priority:
-    - structural    # S-INV-* always win
-    - governance    # G-INV-* override events
-    - events        # E-INV-* override graph
-    - graph         # GH-INV-* are advisory (health)
+    - structural      # S-INV-* always win
+    - governance      # G-INV-*
+    - events          # E-INV-*
+    - health_metrics  # GH-MET-* are advisory
+    - governance_rules # GR-POL-* are escalation triggers only
 
-  # What happens on violation:
   responses:
     critical: "REJECT — system state is invalid. Block the operation."
-    warning:  "WARN — log the violation. Allow operation to proceed with flag."
+    warning:  "WARN — log the violation. Allow operation. Escalate if Layer 3."
 
-  # Cold-start semantics:
   cold_start:
     rule: >
       When the system is empty (no SSOT files exist, no events in store),
       all invariants pass vacuously. The first SSOT creation is not
-      constrained by orphan or link invariants — there are no other
+      constrained by reference or link invariants — there are no other
       nodes to link to yet.
 
-  # Phase gating:
   phase_gating:
     phase_0:
-      enforced: [S-INV-001, S-INV-002, S-INV-003, S-INV-004]
+      enforced: [S-INV-001, S-INV-002, S-INV-003]
       waived:   [G-INV-001]  # seed owner is implicit domain owner
     phase_1_onward:
-      enforced: all invariants
+      enforced: all
       waived:   none
 
 # ============================================================================
@@ -249,43 +355,37 @@ enforcement:
 
 failure_modes:
   FM-validator-001:
-    invariant: S-INV-001 (no-orphan-nodes)
-    trigger: SSOT deleted without updating links
+    invariant: S-INV-001 (no-broken-references)
+    trigger: SSOT deleted without updating incoming links
     recovery: restore SSOT or update all incoming links
     auto_recoverable: false
 
   FM-validator-002:
-    invariant: S-INV-002 (every-link-resolves)
-    trigger: file renamed without updating references
-    recovery: update link target or restore original filename
-    auto_recoverable: false
-
-  FM-validator-003:
-    invariant: S-INV-003 (frontmatter-completeness)
+    invariant: S-INV-002 (frontmatter-completeness)
     trigger: SSOT created without frontmatter template
     recovery: add missing frontmatter fields
     auto_recoverable: true — prompt author with template
 
-  FM-validator-004:
+  FM-validator-003:
     invariant: G-INV-001 (every-domain-has-owner)
     trigger: domain owner removed without reassignment
     recovery: trigger domain-assignment workflow
     auto_recoverable: true — auto-assign to System Guardian as interim
 
-  FM-validator-005:
+  FM-validator-004:
     invariant: G-INV-002 (one-concept-one-owner)
     trigger: two SSOT files claim same concept
-    recovery: domain owner resolves conflict (L2 or L3 correction)
-    auto_recoverable: false
+    recovery: domain owner or Arbiter resolves (L3 correction)
+    auto_recoverable: false — requires governance decision
 
-  FM-validator-006:
+  FM-validator-005:
     invariant: E-INV-001 (event-immutability)
     trigger: manual edit of event-store file outside ACP
     recovery: restore from git or snapshot
     auto_recoverable: false — requires human investigation
 
-  FM-validator-007:
-    invariant: GH-INV-001 (no-circular-dependency)
+  FM-validator-006:
+    invariant: GH-MET-002 (no-circular-dependency)
     trigger: A depends on B, B depends on C, C depends on A
     recovery: break cycle by removing one link
     auto_recoverable: false
@@ -293,54 +393,45 @@ failure_modes:
 # ============================================================================
 # CHAOS TEST CONTRACTS
 # ============================================================================
-# These are tests that MUST pass before Validator is considered complete.
 
 chaos_contracts:
   - id: CHAOS-001
     name: "kill-validator-mid-run"
-    description: >
-      Terminate validator.py with SIGKILL during a validation run
-      on a 50-node graph. Restart validator. It MUST either:
-      (a) resume from last checkpoint and complete, or
-      (b) restart cleanly with no partial state corruption.
-      It MUST NOT leave the system in an inconsistent state.
-    invariant_tested: S-INV-001, S-INV-002
-    pass_condition: no partial validation output, no corrupted projection
+    invariant_tested: S-INV-001
+    pass_condition: no partial output, no corrupted state
 
   - id: CHAOS-002
-    name: "inject-invalid-graph-state"
-    description: >
-      Inject a broken links.yaml where SSOT-A links to non-existent SSOT-X.
-      Run validator. It MUST detect the violation (S-INV-002) and reject.
-      It MUST NOT crash or produce a false-positive on unrelated invariants.
-    invariant_tested: S-INV-002
+    name: "inject-broken-reference"
+    invariant_tested: S-INV-001
     pass_condition: violation detected, system rejects, no false positives
 
   - id: CHAOS-003
     name: "concurrent-correction-request"
-    description: >
-      Submit two corrections that modify the same SSOT field
-      simultaneously. The system MUST serialize them (one wins,
-      one is superseded) and MUST NOT produce a merge conflict
-      that requires manual resolution outside the governance model.
-    invariant_tested: G-INV-003, G-INV-004
+    invariant_tested: G-INV-003
     pass_condition: exactly one correction applied, other superseded
 
   - id: CHAOS-004
     name: "duplicate-concept-claim"
-    description: >
-      Create two SSOT files that both claim ownership of the same
-      concept in concept-registry. Validator MUST reject the second
-      claim (G-INV-002) and preserve the first.
     invariant_tested: G-INV-002
     pass_condition: second claim rejected, first owner preserved
 
   - id: CHAOS-005
     name: "cold-start-empty-system"
-    description: >
-      Run validator on a completely empty system (no SSOT, no events,
-      no registry entries). Validator MUST pass all invariants
-      vacuously. It MUST NOT produce false positives or require
-      manual configuration to start.
     invariant_tested: all (cold-start semantics)
     pass_condition: all checks pass, zero violations, exit code 0
+
+  - id: CHAOS-006
+    name: "partial-validity-graph"
+    description: >
+      50-node graph where 90% are valid but 10% contain broken
+      references in critical dependency paths. Validator MUST:
+      (a) detect all 5 broken references,
+      (b) report exactly which nodes are affected,
+      (c) NOT crash or produce false positives on the 45 valid nodes,
+      (d) return valid=false with a complete violations list.
+      This is the most common real-world failure mode:
+      incremental corruption, not total collapse.
+    invariant_tested: S-INV-001
+    pass_condition: >
+      5 violations detected, 45 nodes pass, no crash,
+      violations list is complete (not truncated at first error)

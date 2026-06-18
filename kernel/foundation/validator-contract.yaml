@@ -7,8 +7,47 @@
 # ============================================================================
 
 managed-by: knowledge-kernel
-managed-version: 2.0
-derived-from: kernel/foundation/validator-invariants.yaml
+managed-version: 2.0.1
+derived-from: kernel/foundation/validator-invariants.yaml (v1.1)
+
+# ============================================================================
+# SEMANTIC BOUNDARY
+# ============================================================================
+# What Validator treats as deterministic vs interpreted vs external.
+# This boundary prevents Validator from becoming a god-object that
+# must "understand" the system rather than "check" the system.
+
+semantic_boundary:
+  deterministic:
+    description: >
+      These checks produce the SAME result every time on the SAME input.
+      No human judgment. No contextual interpretation. Binary pass/fail.
+    checks:
+      - "File existence (link targets, source references)"
+      - "Frontmatter field presence (required keys, non-null values)"
+      - "YAML schema validation (structural match to declared schema)"
+      - "Event content hash verification (immutability proof)"
+      - "Circular dependency detection (graph topology)"
+      - "Duplicate concept path detection (string equality)"
+
+  interpreted:
+    description: >
+      These are FLAGGED by Validator but JUDGED by Auditor/Arbiter.
+      Validator provides the metric; it does not decide significance.
+    checks:
+      - "Unreferenced node rate (is 11% actually a problem in context?)"
+      - "Clock skew significance (is 6s drift meaningful?)"
+      - "Correction staleness urgency (is 50h materially worse than 48h?)"
+
+  external:
+    description: >
+      These are OUTSIDE Validator's scope entirely.
+      Validator may detect preconditions but resolution is elsewhere.
+    handled_by:
+      - "Ownership dispute → Arbiter"
+      - "Correction approval/rejection → Domain Owner"
+      - "Domain assignment/reassignment → System Guardian"
+      - "Stagnation response → Auditor → Health Dashboard"
 
 # ============================================================================
 # INPUT CONTRACT
