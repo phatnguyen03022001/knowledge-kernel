@@ -345,30 +345,36 @@ governance_rules:
 
 semantic_boundary:
   deterministic:
-    - "File existence checks (link resolution, source resolution)"
-    - "Frontmatter field presence (required keys, non-null values)"
-    - "YAML schema validation (structural match to declared schema)"
-    - "Event content hash verification (immutability proof)"
-    - "Circular dependency detection (graph topology)"
-    - "Duplicate concept path detection (string equality)"
+    description: >
+      These checks produce the SAME result every time on the SAME input.
+      No human judgment. No contextual interpretation. Binary pass/fail.
+    checks:
+      - "File existence checks (link resolution, source resolution)"
+      - "Frontmatter field presence (required keys, non-null values)"
+      - "YAML schema validation (structural match to declared schema)"
+      - "Event content hash verification (immutability proof)"
+      - "Circular dependency detection (graph topology)"
+      - "Duplicate concept path detection (string equality)"
 
   interpreted:
-    - "Orphan rate severity (is 11% actually bad in this context?)"
-    - "Clock skew significance (is 6s skew a real problem?)"
-    - "Correction staleness urgency (is 50h worse than 48h?)"
     description: >
       These are FLAGGED by Validator but JUDGED by Auditor/Arbiter.
       Validator provides the data; it does not make the call.
+    checks:
+      - "Orphan rate severity (is 11% actually bad in this context?)"
+      - "Clock skew significance (is 6s skew a real problem?)"
+      - "Correction staleness urgency (is 50h worse than 48h?)"
 
   external:
-    - "Ownership dispute resolution (Arbiter)"
-    - "Correction approval/rejection (Domain Owner)"
-    - "Domain assignment/reassignment (System Guardian)"
-    - "Stagnation response (Auditor → Health Dashboard)"
     description: >
       These are OUTSIDE Validator's scope. Validator may detect
       preconditions (e.g., "domain has no owner") but the resolution
       is handled by the appropriate governance actor.
+    handled_by:
+      - "Ownership dispute resolution → Arbiter"
+      - "Correction approval/rejection → Domain Owner"
+      - "Domain assignment/reassignment → System Guardian"
+      - "Stagnation response → Auditor → Health Dashboard"
 
 # ============================================================================
 # INVARIANT ENFORCEMENT RULES

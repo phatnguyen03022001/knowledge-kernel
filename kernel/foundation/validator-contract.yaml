@@ -119,7 +119,9 @@ input:
     properties:
       root_dir:
         type: string
-        default: "." (project root)
+        default: "."
+
+  # NOTE: project root = current working directory
       event_store_dir:
         type: string
         default: "runtime/event-store/"
