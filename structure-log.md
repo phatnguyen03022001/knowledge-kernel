@@ -360,6 +360,7 @@
 | **End-to-end chain** | **~95%** | correction.approved → update-ssot → ssot.updated → validate-graph + refresh-health |
 | **Test harness** | **~100%** | 3/3 PASS, YAML scenario format |
 | **Infrastructure deferral** | **~95%** | Adapter-layer invariant confirmed — no premature scaling |
+| **Phase 2 build plan** | **~90%** | Dependency-driven order, no GPT needed — Phase 1 spec is complete |
 
 ---
 
@@ -575,3 +576,140 @@ From a folder structure → an **event-sourced, governance-bound knowledge kerne
 >
 > Template contains only what defines how the system operates.
 > Project contains only what the system operates on.
+
+---
+
+## Phase 2 Plan — Domain Bootstrap
+
+> Goal: build the remaining kernel runtime so domain owners can begin operating.
+> Timeline: Day 1–7 of bootstrap.
+> Principle: build in dependency order — each milestone unlocks the next.
+
+### Dependency chain
+
+```text
+Validator ──→ Projection ──→ Health Dashboard
+    │                              │
+    └──→ Correction Loop ──────────┘
+              │
+              └──→ Auditor ──→ Arbiter (escalation only)
+```
+
+### M1: Validator (Day 1–2)
+
+**The foundation.** Every other component needs to know: "is this state valid?"
+
+| What | Details |
+|------|---------|
+| **File** | `kernel/runtime/validator.py` (~300 lines) |
+| **Checks** | schema validation, graph validation (orphan detection), link validation (broken links), ownership validation (domain owner exists), registry consistency |
+| **Interface** | `validate(target, rules) → {valid: bool, violations: [...]}` |
+| **Rules source** | `kernel/foundation/validator-rules.yaml` |
+| **Depends on** | `concept-registry.yaml` (ownership), `event-schema.yaml` (schema) |
+| **Acceptance** | All 5 check types pass against current `runtime/` state. Introducing a deliberate orphan → caught. Broken link → caught. Schema violation → caught |
+| **Test scenarios** | validate-graph-only (exists), validate-schema-broken (new), validate-orphan-detected (new), validate-ownership-missing (new) |
+
+### M2: Projection Layer (Day 2–3)
+
+**Materialized views.** Event Store is append-only. Projections give queryable current state.
+
+| What | Details |
+|------|---------|
+| **File** | `kernel/runtime/projection.py` (~250 lines) |
+| **Projections** | `concept-registry` (from events + concept-registry.yaml), `ownership-registry` (who owns what), `graph-health` (orphan count, broken links, link density) |
+| **Modes** | Full Replay (rebuild from event-store), Incremental (from last_processed_event) |
+| **Snapshot** | Every 100 events or 24h → `runtime/snapshots/` |
+| **Depends on** | M1 Validator (runs validation before projection commit), `runtime/event-store/` |
+| **Acceptance** | `concept-registry` projection matches `concept-registry.yaml` source. `graph-health` projection updates after `validate-graph` event. Rebuild from scratch yields identical result |
+| **Test scenarios** | projection-full-replay (new), projection-incremental (new), projection-snapshot (new) |
+
+### M3: Correction Loop (Day 3–4)
+
+**The governance mechanism.** Every SSOT change must pass through correction event → domain owner approval → apply → closure.
+
+| What | Details |
+|------|---------|
+| **File** | `kernel/runtime/correction.py` (~350 lines) |
+| **Flow** | `propose → validate (M1) → domain_owner_approve → apply_patch → update_metadata → close` |
+| **Tiering** | L1 auto-merge (typo, link fix, metadata), L2 domain review (content change), L3 multi-domain arbitration (conflict between primary/secondary) |
+| **Enforcement** | CI check: SSOT content changed without correction event → fail |
+| **Depends on** | M1 Validator, ACP Runner (for apply_patch step), `governance/corrections/` |
+| **Acceptance** | L1 correction auto-applied without human. L2 correction waits for domain owner approval token. Correction applied → SSOT updated → correction status = closed |
+| **Test scenarios** | correction-l1-auto-merge (new), correction-l2-domain-review (new), correction-l3-multi-domain (new), correction-reject-invalid (new) |
+
+### M4: Health Dashboard (Day 4–5)
+
+**System observability.** Composite heartbeat score from 4 vital signs.
+
+| What | Details |
+|------|---------|
+| **File** | `kernel/runtime/health.py` (~200 lines) |
+| **Metrics** | inbox_health (avg_age, % > TTL), correction_health (open_count, avg_resolution_time), graph_health (orphan_count, broken_links), governance_health (domains_without_owner, stale_corrections) |
+| **Composite** | `score = 0.4*graph + 0.3*correction + 0.2*inbox + 0.1*governance` |
+| **Dead detection** | orphan_rate > 10% OR correction_backlog > threshold OR inbox_stagnant > 7 days → DEGRADED |
+| **Output** | `runtime/reports/latest-health.yaml` (auto-refreshed) |
+| **Depends on** | M2 Projection (reads graph-health, concept-registry projections), M3 Correction Loop (correction stats) |
+| **Acceptance** | Healthy system → score >= 80. Introduce 5 orphans → score drops, status = DEGRADED. Clear orphans → score recovers |
+| **Test scenarios** | health-score-healthy (new), health-score-degraded (new), health-dead-detection (new) |
+
+### M5: Auditor (Day 5–6)
+
+**Passive observation.** Does not block, does not approve. Only records.
+
+| What | Details |
+|------|---------|
+| **File** | `kernel/runtime/auditor.py` (~200 lines) |
+| **Reports** | stagnation report (inbox unprocessed > threshold), compliance report (all SSOT have review-by dates, all domains have owners), audit trail (every state mutation logged) |
+| **Output** | `audit_logs/` (stagnation, compliance, mutation) |
+| **Depends on** | M4 Health Dashboard (triggers on DEGRADED state), M2 Projection (reads current state) |
+| **Acceptance** | Inbox untouched for 8 days → stagnation report auto-generated. Domain missing owner → compliance report flags it. Every ACP execution → audit trail entry |
+| **Test scenarios** | auditor-stagnation-report (new), auditor-compliance-missing-owner (new), auditor-audit-trail (new) |
+
+### M6: Arbiter (Day 6–7)
+
+**Escalation only.** Resolves domain conflicts. Not on the happy path.
+
+| What | Details |
+|------|---------|
+| **File** | `kernel/runtime/arbiter.py` (~150 lines) |
+| **Trigger** | Escalation event from M3 Correction Loop (L3 multi-domain conflict) |
+| **Resolution** | Primary domain wins by default. Secondary can escalate with rationale. Arbiter reviews both positions → final decision binding |
+| **Rules source** | `governance/escalation-policy.yaml` |
+| **Depends on** | M3 Correction Loop (L3 tiering) |
+| **Acceptance** | Primary + Secondary disagree → escalation event → Arbiter resolves → decision recorded. Arbiter decision is final (no appeal loop). Happy path executions never invoke Arbiter |
+| **Test scenarios** | arbiter-resolve-conflict (new), arbiter-primary-wins-default (new), arbiter-no-escalation-on-happy-path (new) |
+
+### Phase 2 completion criteria
+
+| Criterion | Threshold |
+|-----------|-----------|
+| **All 6 milestones built** | M1–M6 code + tests |
+| **Test coverage** | ≥ 20 test scenarios (from current 3) |
+| **End-to-end chain** | correction.approved → update-ssot → validate-graph + refresh-health → health score updated → audit logged |
+| **Domain owner can operate** | Approve/reject correction, view health dashboard, receive stagnation alerts |
+| **No regression** | All Phase 1 tests still pass |
+
+### What Phase 2 does NOT build
+
+| Deferred to Phase 3 | Reason |
+|---------------------|--------|
+| Multi-tenant adapter (postgres/cloud) | Single-dev bootstrap doesn't need it |
+| UI dashboard | CLI-first. Dashboard is plugin layer |
+| B2B/B2C governance profiles | Not yet at multi-project scale |
+| Exactly-once delivery | At-Least-Once + idempotency sufficient for V2 |
+| Worker pool / parallel execution | Single-thread ACP runner handles Phase 2 load |
+
+---
+
+### Decision 34: Phase 2 build plan — build Validator first, no GPT needed
+
+| Field | Value |
+|--------|---------|
+| **Selected** | Self-build Phase 2 from existing Phase 1 spec. No additional GPT rounds |
+| **Rejected** | More GPT design rounds (risk: analysis paralysis, design-by-committee) |
+| **Order** | Validator → Projection → Correction Loop → Health Dashboard → Auditor → Arbiter (dependency-driven) |
+| **Rationale** | Phase 1 already has 33 decisions across 11 GPT rounds. The spec is complete — what's missing is code, not design. GPT doesn't know the current codebase (acp_runner.py 1477 lines, acp_event_bus.py 872 lines) well enough to give implementation-level guidance |
+| **Confidence** | ~90% |
+| **Estimated effort** | ~1450 lines Python + ~17 test scenarios |
+
+**Source:** Claude (Phase 1 retrospective + Phase 2 planning).
